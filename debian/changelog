@@ -1,3 +1,11 @@
+sonic-cel-platform-modules (0.5) unstable; urgency=low
+
+  * Add port-mode switch script to support 100G 50G 10G_50G qsfp modes.
+  * Fix garbage data when using sfputil to read QSFP-transceiver's eeprom.
+  * Fix incorrect endian in eeprom read word data.
+
+ -- Pradchaya Phucharoen <pphuchar@celestica.com>  Thu, 18 July 2017 11:30:00 +0700
+
 sonic-cel-platform-modules (0.4) unstable; urgency=low
 
   * Add support for DX010's fancontrol, automatic run-up and FIX bug lpmod
