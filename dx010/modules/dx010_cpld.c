@@ -320,10 +320,8 @@ static int i2c_read_eeprom(struct i2c_adapter *a, u16 addr,
         }
 
         temp = ioBase + readdata;
-        read_byte = inb(temp);
-        word_data = (read_byte << 8);
-        temp++;
-        word_data |= inb(temp);
+        word_data = inb(temp);
+        word_data |= (inb(++temp) << 8);
 
         mutex_unlock(&cpld_data->cpld_lock);
         data->word = word_data;
