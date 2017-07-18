@@ -4,7 +4,7 @@ sonic-cel-platform-modules (0.5) unstable; urgency=low
   * Fix garbage data when using sfputil to read QSFP-transceiver's eeprom.
   * Fix incorrect endian in eeprom read word data.
 
- -- Pradchaya Phucharoen <pphuchar@celestica.com>  Thu, 18 July 2017 11:30:00 +0700
+ -- Pradchaya Phucharoen <pphuchar@celestica.com>  Tue, 18 July 2017 11:30:00 +0700
 
 sonic-cel-platform-modules (0.4) unstable; urgency=low
 
