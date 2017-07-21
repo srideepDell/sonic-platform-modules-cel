@@ -76,6 +76,9 @@ start)
         modprobe dx010_cpld
         sleep 2
 
+        # Turn off/down lpmod by defult (0 - Normal, 1 - Low Pow)
+        echo 0x00000000 > /sys/devices/platform/dx010_cpld/qsfp_lpmode
+
         # Attach 32 instances of EEPROM driver QSFP ports
         for ((n=26;n<=58;n++));
         do
