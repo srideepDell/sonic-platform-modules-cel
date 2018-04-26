@@ -1,3 +1,15 @@
+sonic-cel-platform-modules (0.8) unstable; urgency=low
+
+  * Add support for Haliburton
+
+ -- Supakit Fuangkaew <sfuangk@celestica.com>  Thu, 29 Mar 2018 11:11:11 +0700
+
+sonic-cel-platform-modules (0.7) unstable; urgency=low
+
+  * Add support for Questone2
+
+ -- Wirut Getbamrung <wgetbumr@celestica.com>  Tue, 14 Mar 2018 12:00:00 +0700
+
 sonic-cel-platform-modules (0.6) unstable; urgency=low
 
   * Remove unused port-mode switch script. This should be done by hwsku config script.
