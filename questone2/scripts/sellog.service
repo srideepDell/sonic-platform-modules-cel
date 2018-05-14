@@ -1,0 +1,6 @@
+[Unit]
+Description=Call python script to get over-temperature warning message from BMC and add it to SONiC syslog
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python /usr/local/etc/sel_job.py

@@ -1,0 +1,9 @@
+[Unit]
+Description=Timer for add warning message from BMC to SONiC syslog
+
+[Timer]
+OnUnitActiveSec=5min
+OnBootSec=5min
+
+[Install]
+WantedBy=multi-user.target
