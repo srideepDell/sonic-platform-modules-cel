@@ -1,5 +1,5 @@
 [Unit]
-Description=Call python script to get over-temperature warning message from BMC and add it to SONiC syslog
+Description=Call python script to get warning message from BMC and add it to SONiC syslog
 
 [Service]
 Type=oneshot
