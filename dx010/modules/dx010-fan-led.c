@@ -109,6 +109,7 @@ static int __init dx010_fan_led_init(void){
 }
 
 static void __exit dx010_fan_led_exit(void){
+  cancel_delayed_work_sync(&fan_update);
   destroy_workqueue(dx010_fan_led_workqueue);
   gc = NULL;
   dx010_fan_led_workqueue = NULL;
