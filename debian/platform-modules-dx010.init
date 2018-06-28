@@ -94,28 +94,12 @@ start)
         modprobe dx010_cpld
         sleep 2
 
+        modprobe dx010-fan-led
         # Export platform gpio sysfs
-        export_gpio 10  # Fan 1 present
-        export_gpio 11  # Fan 2 present
-        export_gpio 12  # Fan 3 present
-        export_gpio 13  # Fan 4 present
-        export_gpio 14  # Fan 5 present
-
         export_gpio 22  # PSU L PWOK
         export_gpio 25  # PSU R PWOK
         export_gpio 27  # PSU L ABS
         export_gpio 28  # PSU R ABS
-
-        export_gpio 29  # Fan 1 LED: Red
-        export_gpio 30  # Fan 1 LED: Yellow
-        export_gpio 31  # Fan 2 LED: Red
-        export_gpio 32  # Fan 2 LED: Yellow
-        export_gpio 33  # Fan 3 LED: Red
-        export_gpio 34  # Fan 3 LED: Yellow
-        export_gpio 35  # Fan 4 LED: Red
-        export_gpio 36  # Fan 4 LED: Yellow
-        export_gpio 37  # Fan 5 LED: Red
-        export_gpio 38  # Fan 5 LED: Yellow
 
         # Turn off/down lpmod by defult (0 - Normal, 1 - Low Pow)
         echo 0x00000000 > /sys/devices/platform/dx010_cpld/qsfp_lpmode
