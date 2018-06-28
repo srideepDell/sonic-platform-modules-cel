@@ -11,7 +11,7 @@
 #define MODULE_NAME "dx010-fan-led"
 
 #define NUM_FAN 5
-#define UPDATE_MS 10
+#define UPDATE_MS 100
 
 
 struct fan_gpio {
@@ -70,14 +70,14 @@ static void update_led(void){
   int present;
 
   for (index=0; index < NUM_FAN; index++){
-    present = !gpio_get_value(gc->base+fan_gpios[index].present_pin);
+    present = !gpio_get_value_cansleep(gc->base+fan_gpios[index].present_pin);
     if( present != fan_gpios[index].prs ){
       if( present ){
-        gpio_set_value(gc->base+fan_gpios[index].red_led_pin, 1);
-        gpio_set_value(gc->base+fan_gpios[index].yel_led_pin, 0);
+        gpio_set_value_cansleep(gc->base+fan_gpios[index].red_led_pin, 1);
+        gpio_set_value_cansleep(gc->base+fan_gpios[index].yel_led_pin, 0);
       }else{
-        gpio_set_value(gc->base+fan_gpios[index].red_led_pin, 0);
-        gpio_set_value(gc->base+fan_gpios[index].yel_led_pin, 1);
+        gpio_set_value_cansleep(gc->base+fan_gpios[index].red_led_pin, 0);
+        gpio_set_value_cansleep(gc->base+fan_gpios[index].yel_led_pin, 1);
       }
     }
     fan_gpios[index].prs = present;
