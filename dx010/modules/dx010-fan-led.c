@@ -1,7 +1,24 @@
+/*
+ * dx010-fan-led.c - Kernel module for Seastone DX010 fan LEDs
+ *
+ * Copyright (C) 2018 Celestica Corp.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
 #include <linux/module.h>
-#include <linux/device.h>
-#include <linux/i2c.h>
-#include <linux/leds.h>
 #include <linux/workqueue.h>
 #include <linux/gpio.h>
 #include <linux/kernel.h>
@@ -77,6 +94,9 @@ static int chip_match_name(struct gpio_chip *chip, void *data){
 static void init_fan_gpio(void){
   int index;
   for( index=0; index < NUM_FAN; index++){
+    gpio_request(gc->base+fan_gpios[index].presence_pin, NULL);
+    gpio_request(gc->base+fan_gpios[index].red_led_pin, NULL);
+    gpio_request(gc->base+fan_gpios[index].yel_led_pin, NULL);
     gpio_direction_input(gc->base+fan_gpios[index].presence_pin);
     gpio_direction_output(gc->base+fan_gpios[index].red_led_pin, 1);
     gpio_direction_output(gc->base+fan_gpios[index].yel_led_pin, 0);
@@ -137,6 +157,15 @@ static void update_led(void){
                      msecs_to_jiffies(delay_ms));
 }
 
+static void deinit_fan_gpio(void){
+  int index;
+  for( index=0; index < NUM_PSU; index++){
+    gpio_free(gc->base+fan_gpios[index].presence_pin);
+    gpio_free(gc->base+fan_gpios[index].red_led_pin);
+    gpio_free(gc->base+fan_gpios[index].yel_led_pin);
+  }
+}
+
 static void deinit_psu_gpio(void){
   int index;
   for( index=0; index < NUM_PSU; index++){
@@ -165,6 +194,7 @@ static int __init dx010_fan_led_init(void){
 static void __exit dx010_fan_led_exit(void){
   cancel_delayed_work_sync(&fan_update);
   destroy_workqueue(dx010_fan_led_workqueue);
+  deinit_fan_gpio();
   deinit_psu_gpio();
   dx010_fan_led_workqueue = NULL;
   gc = NULL;
