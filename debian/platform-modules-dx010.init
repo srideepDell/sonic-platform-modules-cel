@@ -11,24 +11,6 @@
 # Short-Description: Setup DX010 board.
 ### END INIT INFO
 
-function export_gpio {
-label=$2
-gpio_num=$1
-gpio_base=`( cat /sys/class/gpio/gpiochip*/base | head -1 ) 2>/dev/null`
-gpio_label=`( cat /sys/class/gpio/gpiochip*/label | head -1 ) 2>/dev/null`
-if [[ "X$gpio_base" == "X" ]] ||
-( [[ "X$label" != "X" ]] && [[ "$label" != "$gpio_label" ]] ); then
-        echo "Platform driver error: No gpiochip found!"
-        exit 1;
-fi
-ionum=$((gpio_base+gpio_num))
-echo $ionum > /sys/class/gpio/export
-if [ $? -ne 0 ]; then
-        echo "Platform driver error: Cannot export gpio$ionum!"
-        exit 1;
-fi
-}
-
 case "$1" in
 start)
         echo -n "Setting up board... "
@@ -94,12 +76,8 @@ start)
         modprobe dx010_cpld
         sleep 2
 
+        # Init platform gpios
         modprobe dx010-fan-led
-        # Export platform gpio sysfs
-        export_gpio 22  # PSU L PWOK
-        export_gpio 25  # PSU R PWOK
-        export_gpio 27  # PSU L ABS
-        export_gpio 28  # PSU R ABS
 
         # Turn off/down lpmod by defult (0 - Normal, 1 - Low Pow)
         echo 0x00000000 > /sys/devices/platform/dx010_cpld/qsfp_lpmode
