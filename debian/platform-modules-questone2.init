@@ -19,9 +19,14 @@ start)
         modprobe i2c-dev
         modprobe i2c-mux-pca954x
         modprobe questone2_switchboard
-        sleep 2
-	echo 24lc64t 0x56 > /sys/bus/i2c/devices/i2c-0/new_device
-	sleep 1
+        for devnum in 0 1; do
+        	devname=`cat /sys/bus/i2c/devices/i2c-${devnum}/name`
+        	if [[ $devname == 'SMBus iSMT adapter at '* ]]; then
+                	echo 24lc64t 0x56 > /sys/bus/i2c/devices/i2c-${devnum}/new_device
+        	break
+        	fi
+        done
+        sleep 1
 	modprobe questone2_baseboard_cpld
 
         echo "done."
