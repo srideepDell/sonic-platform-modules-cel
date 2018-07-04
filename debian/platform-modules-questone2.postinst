@@ -1,3 +1,4 @@
 systemctl enable sellog.timer
 systemctl start sellog.timer
 update-rc.d platform-modules-questone2 defaults
+service platform-modules-questone2 start
