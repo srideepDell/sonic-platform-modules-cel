@@ -1637,7 +1637,7 @@ static struct i2c_adapter * seastone2_i2c_init(struct platform_device *pdev, int
         "SMBus I2C Adapter PortID: %s", new_data->pca9548.calling_name);
 
     void __iomem *i2c_freq_base_reg = fpga_dev.data_base_addr+I2C_MASTER_FREQ_1;
-    iowrite8(0x1F,i2c_freq_base_reg+(new_data->pca9548.master_bus-1)*0x100); // 0x1F 100kHz
+    iowrite8(0x07,i2c_freq_base_reg+(new_data->pca9548.master_bus-1)*0x100); // 0x07 400kHz
     i2c_set_adapdata(new_adapter,new_data);
     error = i2c_add_numbered_adapter(new_adapter);
     if(error < 0){
