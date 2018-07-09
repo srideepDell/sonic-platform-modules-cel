@@ -492,7 +492,7 @@ static ssize_t set_fpga_reg_address(struct device *dev, struct device_attribute 
 static ssize_t get_fpga_scratch(struct device *dev, struct device_attribute *devattr,
                 char *buf)
 {
-    return sprintf(buf,"0x%8.8lx\n", ioread32(fpga_dev.data_base_addr+FPGA_SCRATCH) & 0xffffffff);
+    return sprintf(buf,"0x%8.8x\n", ioread32(fpga_dev.data_base_addr+FPGA_SCRATCH) & 0xffffffff);
 }
 /**
  * [set_fpga_scratch description]
@@ -531,7 +531,6 @@ static ssize_t set_fpga_reg_value(struct device *dev, struct device_attribute *d
     char *tok;
     char clone[count];
     char *pclone = clone;
-    int err;
     char *last;
 
     strcpy(clone, buf);
@@ -621,7 +620,6 @@ static ssize_t ready_show(struct device *dev, struct device_attribute *attr, cha
 {
     u32 data;
     struct sff_device_data *dev_data = dev_get_drvdata(dev);
-    unsigned int portid = dev_data->portid;
     unsigned int REGISTER = FPGA_PORT_XCVR_READY;
 
     mutex_lock(&fpga_data->fpga_lock);
@@ -1175,19 +1173,18 @@ static int i2c_wait_ack(struct i2c_adapter *a,unsigned timeout,int writing){
     unsigned int REG_DR0;
     unsigned int REG_ID0;
 
-        unsigned int master_bus = new_data->pca9548.master_bus;
+    unsigned int master_bus = new_data->pca9548.master_bus;
 
-        if(master_bus < I2C_MASTER_CH_1 || master_bus > I2C_MASTER_CH_TOTAL){
-            error = -ENXIO;
-            return error;
-        }
+    if(master_bus < I2C_MASTER_CH_1 || master_bus > I2C_MASTER_CH_TOTAL){
+        error = -ENXIO;
+        return error;
+    }
 
-        REG_FDR0  = I2C_MASTER_FREQ_1    + (master_bus-1)*0x0100;
-        REG_CR0   = I2C_MASTER_CTRL_1    + (master_bus-1)*0x0100;
-        REG_SR0   = I2C_MASTER_STATUS_1  + (master_bus-1)*0x0100;
-        REG_DR0   = I2C_MASTER_DATA_1    + (master_bus-1)*0x0100;
-        REG_ID0   = I2C_MASTER_PORT_ID_1 + (master_bus-1)*0x0100;
-
+    REG_FDR0  = I2C_MASTER_FREQ_1    + (master_bus-1)*0x0100;
+    REG_CR0   = I2C_MASTER_CTRL_1    + (master_bus-1)*0x0100;
+    REG_SR0   = I2C_MASTER_STATUS_1  + (master_bus-1)*0x0100;
+    REG_DR0   = I2C_MASTER_DATA_1    + (master_bus-1)*0x0100;
+    REG_ID0   = I2C_MASTER_PORT_ID_1 + (master_bus-1)*0x0100;
 
     check(pci_bar+REG_SR0);
     check(pci_bar+REG_CR0);
@@ -1303,7 +1300,6 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
 
         iowrite8(portid,pci_bar+REG_ID0);
 
-        int timeout=0;
         int cnt=0;
 
         ////[S][ADDR/R]
@@ -1606,7 +1602,7 @@ static struct i2c_adapter * seastone2_i2c_init(struct platform_device *pdev, int
 
     new_adapter = kzalloc(sizeof(*new_adapter), GFP_KERNEL);
     if (!new_adapter){
-        printk(KERN_ALERT "Cannot alloc i2c adapter for %d", fpga_i2c_bus_dev[portid].calling_name);
+        printk(KERN_ALERT "Cannot alloc i2c adapter for %s", fpga_i2c_bus_dev[portid].calling_name);
         return NULL;
     }
 
@@ -1960,7 +1956,7 @@ static int fpga_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
     printk(KERN_INFO "FPGA PCIe driver probe OK.\n");
     printk(KERN_INFO "FPGA ioremap registers of size %lu\n",(unsigned long)fpga_dev.data_mmio_len);
-    printk(KERN_INFO "FPGA Virtual BAR %d at %8.8lx - %8.8lx\n",FPGA_PCI_BAR_NUM,fpga_dev.data_base_addr, fpga_dev.data_base_addr+fpga_dev.data_mmio_len);
+    printk(KERN_INFO "FPGA Virtual BAR %d at %8.8lx - %8.8lx\n",FPGA_PCI_BAR_NUM,(unsigned long)fpga_dev.data_base_addr,(unsigned long)fpga_dev.data_base_addr+ (unsigned long)fpga_dev.data_mmio_len);
     printk(KERN_INFO "");
     uint32_t buff = ioread32(fpga_dev.data_base_addr);
     printk(KERN_INFO "FPGA VERSION : %8.8x\n", buff);
@@ -2012,7 +2008,7 @@ struct fpga_reg_data {
 };
 
 static long fpgafw_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg){
-    int ret;
+    int ret = 0;
     struct fpga_reg_data data;
     mutex_lock(&fpga_data->fpga_lock);
 
