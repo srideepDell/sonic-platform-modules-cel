@@ -9,7 +9,7 @@ def run_command(command):
     try:
         proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
         (out, err) = proc.communicate()
-    except IOError as e:
+    except:
         sys.exit(0)
     return out
 
