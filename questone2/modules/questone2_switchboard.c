@@ -35,7 +35,6 @@
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <linux/stddef.h>
-#include <linux/delay.h>
 #include <linux/ioport.h>
 #include <linux/init.h>
 #include <linux/i2c.h>
@@ -43,7 +42,6 @@
 #include <linux/io.h>
 #include <linux/dmi.h>
 #include <linux/slab.h>
-#include <linux/wait.h>
 #include <linux/err.h>
 #include <linux/kobject.h>
 #include <linux/platform_device.h>
@@ -51,6 +49,7 @@
 #include <uapi/linux/stat.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
+#include <linux/jiffies.h>
 
 
 
@@ -1188,6 +1187,7 @@ static int i2c_wait_ack(struct i2c_adapter *a,unsigned long timeout,int writing)
     check(pci_bar+REG_SR0);
     check(pci_bar+REG_CR0);
 
+    timeout = jiffies + msecs_to_jiffies(timeout);
     while(1){
         Status = ioread8(pci_bar+REG_SR0);
         if(jiffies > timeout){
@@ -1320,7 +1320,7 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
         info( "MS Start");
 
         //// Wait {A}
-        error = i2c_wait_ack(adapter,msecs_to_jiffies(12),1);
+        error = i2c_wait_ack(adapter,12,1);
         if(error<0){
             info( "get error %d",error);
             goto Done;
@@ -1338,7 +1338,7 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
             info( "MS Send CMD 0x%2.2X",cmd);
 
             // Wait {A}
-            error = i2c_wait_ack(adapter,msecs_to_jiffies(12),1);
+            error = i2c_wait_ack(adapter,12,1);
             if(error<0){
                 info( "get error %d",error);
                 goto Done;
@@ -1366,7 +1366,7 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
             info( "MS Send CNT 0x%2.2X",cnt);
 
             // Wait {A}
-            error = i2c_wait_ack(adapter,msecs_to_jiffies(12),1);
+            error = i2c_wait_ack(adapter,12,1);
             if(error<0){
                 info( "get error %d",error);
                 goto Done;
@@ -1392,7 +1392,7 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
                 iowrite8(data->block[bid],pci_bar+REG_DR0);
                 info( "   Data > %2.2X",data->block[bid]);
                 // Wait {A}
-                error = i2c_wait_ack(adapter,msecs_to_jiffies(12),1);
+                error = i2c_wait_ack(adapter,12,1);
                 if(error<0){
                     goto Done;
                 }
@@ -1420,7 +1420,7 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
             iowrite8( addr<<1 | 0x1 ,pci_bar+REG_DR0);
 
             // Wait {A}
-            error = i2c_wait_ack(adapter,msecs_to_jiffies(12),1);
+            error = i2c_wait_ack(adapter,12,1);
             if(error<0){
                 goto Done;
             }
@@ -1461,7 +1461,7 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
             for(bid=-1;bid<cnt;bid++){
 
                 // Wait for byte transfer
-                error = i2c_wait_ack(adapter,msecs_to_jiffies(12),0);
+                error = i2c_wait_ack(adapter,12,0);
                 if(error<0){
                     goto Done;
                 }
