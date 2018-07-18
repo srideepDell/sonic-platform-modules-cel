@@ -33,6 +33,14 @@
  * Fan register offset by 4 bytes.
  */
 
+enum {
+    fan1 = 0,
+    fan2 = 1,
+    // none = 2, 
+    fan3 = 3,
+    fan4 = 4,
+};
+
 #define NUM_FAN             5
 #define FAN_BASE_PWM        0xA140
 #define FAN_BASE_MISC       0xA141
@@ -40,16 +48,17 @@
 #define FAN_BASE_RPM_FRONT  0xA143
 
 // MISC register bitfield
-#define FAN_DIR_BIT  3
-#define FAN_PRS_BIT  2
-#define FAN_GRN_LED  1
-#define FAN_RED_LED  0
+#define FAN_DIR_BIT  3 // RO
+#define FAN_PRS_BIT  2 // RO
+#define FAN_GRN_LED  1 // RW
+#define FAN_RED_LED  0 // RW
 
 struct mutex cpld_lock;
 
 struct fan_cpld_data {
     struct platform_device *pdev;
     struct device *fan_hwmon;
+    struct device *fan_dev[NUM_FAN];
 };
 
 static ssize_t show_speed(struct device *dev, struct device_attribute *da,
@@ -102,24 +111,70 @@ static ssize_t set_pwm(struct device *dev, struct device_attribute *da,
     return count;
 }
 
-static SENSOR_DEVICE_ATTR(fan1_input, S_IRUGO, show_speed, NULL, 0);
-static SENSOR_DEVICE_ATTR(pwm1, S_IWUSR | S_IRUGO, show_pwm , set_pwm, 0);
-static SENSOR_DEVICE_ATTR(fan2_input, S_IRUGO,show_speed, NULL, 1);
-static SENSOR_DEVICE_ATTR(pwm2, S_IWUSR | S_IRUGO, show_pwm, set_pwm, 1);
-static SENSOR_DEVICE_ATTR(fan3_input, S_IRUGO,show_speed, NULL, 3);
-static SENSOR_DEVICE_ATTR(pwm3, S_IWUSR | S_IRUGO, show_pwm , set_pwm, 3);
-static SENSOR_DEVICE_ATTR(fan4_input, S_IRUGO,show_speed, NULL, 4);
-static SENSOR_DEVICE_ATTR(pwm4, S_IWUSR | S_IRUGO, show_pwm , set_pwm, 4);
+static ssize_t show_prs(struct device *dev, struct device_attribute *da,
+            char *buf)
+{
+    struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+    int offset = attr->index;
+    unsigned char prs;
+    int prs_reg = 0;
+
+    prs_reg = FAN_BASE_MISC + ( offset * 4 );
+    mutex_lock(&cpld_lock);
+    prs = inb(prs_reg);
+    mutex_unlock(&cpld_lock);
+    return sprintf(buf, "%d\n", (prs >> FAN_DIR_BIT) & 1u ? 0 : 1);
+}
+
+static ssize_t show_dir(struct device *dev, struct device_attribute *da,
+            char *buf)
+{
+    struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+    int offset = attr->index;
+    unsigned char dir;
+    int dir_reg = 0;
+
+    dir_reg = FAN_BASE_MISC + ( offset * 4 );
+    mutex_lock(&cpld_lock);
+    dir = inb(dir_reg);
+    mutex_unlock(&cpld_lock);
+    return sprintf(buf, "%s\n", (dir >> FAN_PRS_BIT) & 1u ? "B2F" : "F2B");
+}
+
+static SENSOR_DEVICE_ATTR(fan1_input, S_IRUGO, show_speed, NULL, fan1);
+static SENSOR_DEVICE_ATTR(fan2_input, S_IRUGO, show_speed, NULL, fan2);
+static SENSOR_DEVICE_ATTR(fan3_input, S_IRUGO, show_speed, NULL, fan3);
+static SENSOR_DEVICE_ATTR(fan4_input, S_IRUGO, show_speed, NULL, fan4);
+static SENSOR_DEVICE_ATTR(pwm1, S_IWUSR | S_IRUGO, show_pwm , set_pwm, fan1);
+static SENSOR_DEVICE_ATTR(pwm2, S_IWUSR | S_IRUGO, show_pwm , set_pwm, fan2);
+static SENSOR_DEVICE_ATTR(pwm3, S_IWUSR | S_IRUGO, show_pwm , set_pwm, fan3);
+static SENSOR_DEVICE_ATTR(pwm4, S_IWUSR | S_IRUGO, show_pwm , set_pwm, fan4);
+static SENSOR_DEVICE_ATTR(prs1, S_IRUGO, show_prs , NULL, fan1);
+static SENSOR_DEVICE_ATTR(prs2, S_IRUGO, show_prs , NULL, fan2);
+static SENSOR_DEVICE_ATTR(prs3, S_IRUGO, show_prs , NULL, fan3);
+static SENSOR_DEVICE_ATTR(prs4, S_IRUGO, show_prs , NULL, fan4);
+static SENSOR_DEVICE_ATTR(dir1, S_IRUGO, show_dir , NULL, fan1);
+static SENSOR_DEVICE_ATTR(dir2, S_IRUGO, show_dir , NULL, fan2);
+static SENSOR_DEVICE_ATTR(dir3, S_IRUGO, show_dir , NULL, fan3);
+static SENSOR_DEVICE_ATTR(dir4, S_IRUGO, show_dir , NULL, fan4);
 
 static struct attribute *fan_attrs[] = {
     &sensor_dev_attr_fan1_input.dev_attr.attr,
-    &sensor_dev_attr_pwm1.dev_attr.attr,
     &sensor_dev_attr_fan2_input.dev_attr.attr,
-    &sensor_dev_attr_pwm2.dev_attr.attr,
     &sensor_dev_attr_fan3_input.dev_attr.attr,
-    &sensor_dev_attr_pwm3.dev_attr.attr,
     &sensor_dev_attr_fan4_input.dev_attr.attr,
+    &sensor_dev_attr_pwm1.dev_attr.attr,
+    &sensor_dev_attr_pwm2.dev_attr.attr,
+    &sensor_dev_attr_pwm3.dev_attr.attr,
     &sensor_dev_attr_pwm4.dev_attr.attr,
+    &sensor_dev_attr_prs1.dev_attr.attr,
+    &sensor_dev_attr_prs2.dev_attr.attr,
+    &sensor_dev_attr_prs3.dev_attr.attr,
+    &sensor_dev_attr_prs4.dev_attr.attr,
+    &sensor_dev_attr_dir1.dev_attr.attr,
+    &sensor_dev_attr_dir2.dev_attr.attr,
+    &sensor_dev_attr_dir3.dev_attr.attr,
+    &sensor_dev_attr_dir4.dev_attr.attr,
     NULL,
 };
 
@@ -169,9 +224,11 @@ static int fan_cpld_drv_probe(struct platform_device *pdev)
         return -1;
     }
 
+    //TODO: Create LEDs sysfs.
+
     data->fan_hwmon = devm_hwmon_device_register_with_groups(&pdev->dev, DRIVER_NAME, NULL, fan_groups);
     if( IS_ERR(data->fan_hwmon) ){
-        printk(KERN_ERR "Error: canot craete fan hwmon device\n");
+        printk(KERN_ERR "Error: canot create fan hwmon device\n");
         return PTR_ERR(data->fan_hwmon);
     }
     return 0;
