@@ -1,5 +1,5 @@
 /*
- * questone2_fan_cpld.c - driver for Questone2 fan control and monitor.
+ * as5820_fan.c - driver for Questone2 as5820 fan control and monitor.
  * This driver implement hwmon for fan control using CPLDs`.
  * Copyright (C) 2018 Celestica Corp.
  *
@@ -20,13 +20,12 @@
 #include <linux/err.h>
 #include <linux/platform_device.h>
 #include <linux/types.h>
-#include <uapi/linux/stat.h>
 #include <linux/string.h>
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
 #include <linux/mutex.h>
 
-#define DRIVER_NAME "dx030_fan"
+#define DRIVER_NAME "as5820_fan"
 /**
  * CPLD register address for fan control and status.
  * There are 5 fans registers, fan3 is reserved.
@@ -34,11 +33,11 @@
  * Fan register offset by 4 bytes.
  */
 
-#define NUM_FAN         5
-#define FAN_1_PWM       0xA140
-#define FAN_1_MISC      0xA141
-#define FAN_1_RPM_REAR  0xA142
-#define FAN_1_RPM_FRONT 0xA143
+#define NUM_FAN             5
+#define FAN_BASE_PWM        0xA140
+#define FAN_BASE_MISC       0xA141
+#define FAN_BASE_RPM_REAR   0xA142
+#define FAN_BASE_RPM_FRONT  0xA143
 
 // MISC register bitfield
 #define FAN_DIR_BIT  3
@@ -51,11 +50,6 @@ struct mutex cpld_lock;
 struct fan_cpld_data {
     struct platform_device *pdev;
     struct device *fan_hwmon;
-};
-
-struct fan_data {
-    unsigned char pwm[NUM_FAN]; // from 0x00 to 0xff
-    int rpm[NUM_FAN];           // calculate from readval()*150 
 };
 
 static ssize_t show_speed(struct device *dev, struct device_attribute *da,
@@ -160,9 +154,10 @@ static int fan_cpld_drv_probe(struct platform_device *pdev)
         return -1;
     }
 
-    data->fan_hwmon = devm_hwmon_device_register_with_groups(&pdev->dev, "dx030-fan", NULL, fan_groups);
+    data->fan_hwmon = devm_hwmon_device_register_with_groups(&pdev->dev, DRIVER_NAME, NULL, fan_groups);
     if( IS_ERR(data->fan_hwmon) ){
-        printk(KERN_ERR "Error: canot craete dx030 fan hwmon device\n");
+        printk(KERN_ERR "Error: canot craete fan hwmon device\n");
+        return PTR_ERR(data->fan_hwmon);
     }
     return 0;
 }
@@ -199,5 +194,6 @@ module_init(fan_cpld_init);
 module_exit(fan_cpld_exit);
 
 MODULE_AUTHOR("Pradchaya P.  <pphuchar@celestica.com>");
-MODULE_DESCRIPTION("Celestica Questone2 fan hardware monitor");
+MODULE_DESCRIPTION("Celestica as5820 fan hardware monitor");
 MODULE_LICENSE("GPL");
+
