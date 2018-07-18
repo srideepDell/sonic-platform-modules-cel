@@ -59,12 +59,27 @@ static ssize_t show_speed(struct device *dev, struct device_attribute *da,
     int offset = attr->index;
     int rpm, rpm_reg = 0;
 
-    rpm_reg = FAN_1_RPM_REAR + ( offset * 4 );
+    rpm_reg = FAN_BASE_RPM_REAR + ( offset * 4 );
     mutex_lock(&cpld_lock);
     rpm = 150 * (unsigned char)inb(rpm_reg);
     mutex_unlock(&cpld_lock);
 
     return sprintf(buf, "%d\n", rpm);
+}
+
+static ssize_t show_pwm(struct device *dev, struct device_attribute *da,
+            char *buf)
+{
+    struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+    int offset = attr->index;
+    unsigned char pwm;
+    int pwm_reg = 0;
+
+    pwm_reg = FAN_BASE_PWM + ( offset * 4 );
+    mutex_lock(&cpld_lock);
+    pwm = inb(pwm_reg);
+    mutex_unlock(&cpld_lock);
+    return sprintf(buf, "%x\n", pwm);
 }
 
 static ssize_t set_pwm(struct device *dev, struct device_attribute *da,
@@ -76,8 +91,8 @@ static ssize_t set_pwm(struct device *dev, struct device_attribute *da,
     int error;
     int pwm_reg = 0;
 
-    pwm_reg = FAN_1_PWM + ( offset * 4 );
-    error = kstrtou8(buf, 10, &pwm);
+    pwm_reg = FAN_BASE_PWM + ( offset * 4 );
+    error = kstrtou8(buf, 0, &pwm);
     if (error)
         return error;
 
@@ -88,13 +103,13 @@ static ssize_t set_pwm(struct device *dev, struct device_attribute *da,
 }
 
 static SENSOR_DEVICE_ATTR(fan1_input, S_IRUGO, show_speed, NULL, 0);
-static SENSOR_DEVICE_ATTR(pwm1, S_IWUSR, NULL ,set_pwm, 0);
+static SENSOR_DEVICE_ATTR(pwm1, S_IWUSR | S_IRUGO, show_pwm , set_pwm, 0);
 static SENSOR_DEVICE_ATTR(fan2_input, S_IRUGO,show_speed, NULL, 1);
-static SENSOR_DEVICE_ATTR(pwm2, S_IWUSR, NULL,set_pwm, 1);
+static SENSOR_DEVICE_ATTR(pwm2, S_IWUSR | S_IRUGO, show_pwm, set_pwm, 1);
 static SENSOR_DEVICE_ATTR(fan3_input, S_IRUGO,show_speed, NULL, 3);
-static SENSOR_DEVICE_ATTR(pwm3, S_IWUSR, NULL ,set_pwm, 3);
+static SENSOR_DEVICE_ATTR(pwm3, S_IWUSR | S_IRUGO, show_pwm , set_pwm, 3);
 static SENSOR_DEVICE_ATTR(fan4_input, S_IRUGO,show_speed, NULL, 4);
-static SENSOR_DEVICE_ATTR(pwm4, S_IWUSR, NULL ,set_pwm, 4);
+static SENSOR_DEVICE_ATTR(pwm4, S_IWUSR | S_IRUGO, show_pwm , set_pwm, 4);
 
 static struct attribute *fan_attrs[] = {
     &sensor_dev_attr_fan1_input.dev_attr.attr,
@@ -196,4 +211,3 @@ module_exit(fan_cpld_exit);
 MODULE_AUTHOR("Pradchaya P.  <pphuchar@celestica.com>");
 MODULE_DESCRIPTION("Celestica as5820 fan hardware monitor");
 MODULE_LICENSE("GPL");
-
