@@ -1,7 +1,7 @@
 Source: sonic-cel-platform-modules
 Section: main
 Priority: extra
-Maintainer: Abhisit Sangjan <asang@celestica.com>
+Maintainer: Wirut Getbamrung <wgetbumr@celestica.com>
 Build-Depends: debhelper (>= 8.0.0), bzip2
 Standards-Version: 3.9.3
 
@@ -10,3 +10,7 @@ Architecture: amd64
 Depends: linux-image-3.16.0-5-amd64
 Description: kernel modules for platform devices such as fan, led, sfp
 
+Package: platform-modules-as5820
+Architecture: amd64
+Depends: linux-image-3.16.0-5-amd64
+Description: kernel modules for platform devices such as fan, led, sfp
