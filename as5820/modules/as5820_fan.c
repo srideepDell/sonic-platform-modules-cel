@@ -232,14 +232,14 @@ static SENSOR_DEVICE_ATTR(pwm1, S_IWUSR | S_IRUGO, show_pwm , set_pwm, fan1);
 static SENSOR_DEVICE_ATTR(pwm2, S_IWUSR | S_IRUGO, show_pwm , set_pwm, fan2);
 static SENSOR_DEVICE_ATTR(pwm3, S_IWUSR | S_IRUGO, show_pwm , set_pwm, fan3);
 static SENSOR_DEVICE_ATTR(pwm4, S_IWUSR | S_IRUGO, show_pwm , set_pwm, fan4);
-static SENSOR_DEVICE_ATTR(prs1, S_IRUGO, show_prs , NULL, fan1);
-static SENSOR_DEVICE_ATTR(prs2, S_IRUGO, show_prs , NULL, fan2);
-static SENSOR_DEVICE_ATTR(prs3, S_IRUGO, show_prs , NULL, fan3);
-static SENSOR_DEVICE_ATTR(prs4, S_IRUGO, show_prs , NULL, fan4);
-static SENSOR_DEVICE_ATTR(dir1, S_IRUGO, show_dir , NULL, fan1);
-static SENSOR_DEVICE_ATTR(dir2, S_IRUGO, show_dir , NULL, fan2);
-static SENSOR_DEVICE_ATTR(dir3, S_IRUGO, show_dir , NULL, fan3);
-static SENSOR_DEVICE_ATTR(dir4, S_IRUGO, show_dir , NULL, fan4);
+static SENSOR_DEVICE_ATTR(fan1_prs, S_IRUGO, show_prs , NULL, fan1);
+static SENSOR_DEVICE_ATTR(fan2_prs, S_IRUGO, show_prs , NULL, fan2);
+static SENSOR_DEVICE_ATTR(fan3_prs, S_IRUGO, show_prs , NULL, fan3);
+static SENSOR_DEVICE_ATTR(fan4_prs, S_IRUGO, show_prs , NULL, fan4);
+static SENSOR_DEVICE_ATTR(fan1_dir, S_IRUGO, show_dir , NULL, fan1);
+static SENSOR_DEVICE_ATTR(fan2_dir, S_IRUGO, show_dir , NULL, fan2);
+static SENSOR_DEVICE_ATTR(fan3_dir, S_IRUGO, show_dir , NULL, fan3);
+static SENSOR_DEVICE_ATTR(fan4_dir, S_IRUGO, show_dir , NULL, fan4);
 static DEVICE_ATTR(wdt_en, S_IWUSR | S_IRUGO, show_wdt , set_wdt);
 
 static struct attribute *fan_attrs[] = {
@@ -251,14 +251,14 @@ static struct attribute *fan_attrs[] = {
     &sensor_dev_attr_pwm2.dev_attr.attr,
     &sensor_dev_attr_pwm3.dev_attr.attr,
     &sensor_dev_attr_pwm4.dev_attr.attr,
-    &sensor_dev_attr_prs1.dev_attr.attr,
-    &sensor_dev_attr_prs2.dev_attr.attr,
-    &sensor_dev_attr_prs3.dev_attr.attr,
-    &sensor_dev_attr_prs4.dev_attr.attr,
-    &sensor_dev_attr_dir1.dev_attr.attr,
-    &sensor_dev_attr_dir2.dev_attr.attr,
-    &sensor_dev_attr_dir3.dev_attr.attr,
-    &sensor_dev_attr_dir4.dev_attr.attr,
+    &sensor_dev_attr_fan1_prs.dev_attr.attr,
+    &sensor_dev_attr_fan2_prs.dev_attr.attr,
+    &sensor_dev_attr_fan3_prs.dev_attr.attr,
+    &sensor_dev_attr_fan4_prs.dev_attr.attr,
+    &sensor_dev_attr_fan1_dir.dev_attr.attr,
+    &sensor_dev_attr_fan2_dir.dev_attr.attr,
+    &sensor_dev_attr_fan3_dir.dev_attr.attr,
+    &sensor_dev_attr_fan4_dir.dev_attr.attr,
     &dev_attr_wdt_en.attr,
     NULL,
 };
