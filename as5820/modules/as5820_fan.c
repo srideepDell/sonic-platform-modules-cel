@@ -46,6 +46,7 @@ enum {
 #define FAN_BASE_MISC       0xA141
 #define FAN_BASE_RPM_REAR   0xA142
 #define FAN_BASE_RPM_FRONT  0xA143
+#define FAN_WDT             0xA134
 
 // MISC register bitfield
 #define FAN_DIR_BIT  3 // RO
@@ -60,6 +61,38 @@ struct fan_cpld_data {
     struct device *fan_hwmon;
     struct device *fan_dev[NUM_FAN];
 };
+
+
+static ssize_t set_wdt(struct device *dev, struct device_attribute *da,
+            const char *buf, size_t count)
+{
+    unsigned char wdt;
+    int error;
+    int wdt_reg = 0;
+
+    wdt_reg = FAN_WDT;
+    error = kstrtou8(buf, 0, &wdt);
+    if (error)
+        return error;
+
+    mutex_lock(&cpld_lock);
+    outb( wdt ? 1 : 0, wdt_reg );
+    mutex_unlock(&cpld_lock);
+    return count;
+}
+
+static ssize_t show_wdt(struct device *dev, struct device_attribute *da,
+            char *buf)
+{
+    unsigned char wdt;
+    int wdt_reg = 0;
+
+    wdt_reg = FAN_WDT;
+    mutex_lock(&cpld_lock);
+    wdt = inb(wdt_reg);
+    mutex_unlock(&cpld_lock);
+    return sprintf(buf, "%d\n", FAN_WDT & 1u );
+}
 
 static ssize_t show_speed(struct device *dev, struct device_attribute *da,
              char *buf)
@@ -157,6 +190,7 @@ static SENSOR_DEVICE_ATTR(dir1, S_IRUGO, show_dir , NULL, fan1);
 static SENSOR_DEVICE_ATTR(dir2, S_IRUGO, show_dir , NULL, fan2);
 static SENSOR_DEVICE_ATTR(dir3, S_IRUGO, show_dir , NULL, fan3);
 static SENSOR_DEVICE_ATTR(dir4, S_IRUGO, show_dir , NULL, fan4);
+static DEVICE_ATTR(wdt_en, S_IWUSR | S_IRUGO, show_wdt , set_wdt);
 
 static struct attribute *fan_attrs[] = {
     &sensor_dev_attr_fan1_input.dev_attr.attr,
@@ -175,6 +209,7 @@ static struct attribute *fan_attrs[] = {
     &sensor_dev_attr_dir2.dev_attr.attr,
     &sensor_dev_attr_dir3.dev_attr.attr,
     &sensor_dev_attr_dir4.dev_attr.attr,
+    &dev_attr_wdt_en.attr,
     NULL,
 };
 
