@@ -9,27 +9,21 @@
  * (at your option) any later version.
  */
 
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/stddef.h>
-#include <linux/ioport.h>
-#include <linux/init.h>
-#include <linux/acpi.h>
-#include <linux/io.h>
-#include <linux/dmi.h>
 #include <linux/err.h>
-#include <linux/platform_device.h>
-#include <linux/types.h>
-#include <linux/string.h>
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
+#include <linux/ioport.h>
+#include <linux/kernel.h>
+#include <linux/leds.h>
+#include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/platform_device.h>
 
 #define DRIVER_NAME "as5820_fan"
 /**
  * CPLD register address for fan control and status.
- * There are 5 fans registers, fan3 is reserved.
- * 
+ * There are 5 fans registers, with fan3 reserved.
+ * Only 4 fans in use in system.
  * Fan register offset by 4 bytes.
  */
 
@@ -41,27 +35,48 @@ enum {
     fan4 = 4,
 };
 
-#define NUM_FAN             5
+#define NUM_FAN             4
 #define FAN_BASE_PWM        0xA140
 #define FAN_BASE_MISC       0xA141
 #define FAN_BASE_RPM_REAR   0xA142
 #define FAN_BASE_RPM_FRONT  0xA143
 #define FAN_WDT             0xA134
 
-// MISC register bitfield
+/** MISC register bitfield */
 #define FAN_DIR_BIT  3 // RO
 #define FAN_PRS_BIT  2 // RO
 #define FAN_GRN_LED  1 // RW
 #define FAN_RED_LED  0 // RW
 
+/** device accesss lock */
 struct mutex cpld_lock;
+
+/**
+ * led_param - LED access parameters:
+ * @offset - offset for LED access in CPLD device
+ * @mask - mask for LED access in CPLD device
+ */
+struct led_param {
+    unsigned char offset;
+    unsigned char mask;
+};
+
+/**
+ * cpld_led - LED private data:
+ * @cdev - LED class device instance
+ * @param - LED CPLD access parameters
+ */
+struct cpld_led {
+    struct led_classdev cdev;
+    struct led_param param;
+};
+
+#define cdev_to_priv(c)     container_of(c, struct cpld_led, cdev)
 
 struct fan_cpld_data {
     struct platform_device *pdev;
     struct device *fan_hwmon;
-    struct device *fan_dev[NUM_FAN];
 };
-
 
 static ssize_t set_wdt(struct device *dev, struct device_attribute *da,
             const char *buf, size_t count)
@@ -174,6 +189,41 @@ static ssize_t show_dir(struct device *dev, struct device_attribute *da,
     return sprintf(buf, "%s\n", (dir >> FAN_PRS_BIT) & 1u ? "B2F" : "F2B");
 }
 
+enum led_brightness as5820_led_brightness_get(struct led_classdev *led_cdev)
+{
+    struct cpld_led *pled = cdev_to_priv(led_cdev);
+    unsigned char led;
+    int reg = 0;
+
+    reg = FAN_BASE_MISC + ( pled->param.offset * 4 );
+    mutex_lock(&cpld_lock);
+    led = inb(reg);
+    mutex_unlock(&cpld_lock);
+    return ( (led >> pled->param.mask) & 1u ? LED_OFF : 1 );
+}
+
+static void as5820_led_brightness_set(struct led_classdev *led_cdev,
+                                        enum led_brightness brightness)
+{
+    struct cpld_led *pled = cdev_to_priv(led_cdev);
+    unsigned char led;
+    int reg = 0;
+
+    reg = FAN_BASE_MISC + ( pled->param.offset * 4 );
+
+    mutex_lock(&cpld_lock);
+    led = inb(reg);
+    mutex_unlock(&cpld_lock);
+    led &= ~(1 << pled->param.mask);
+    if (!brightness)
+            led |= (1 << pled->param.mask);
+
+    mutex_lock(&cpld_lock);
+    outb(led, reg);
+    mutex_unlock(&cpld_lock);
+}
+
+/** hardware monitor attributes */
 static SENSOR_DEVICE_ATTR(fan1_input, S_IRUGO, show_speed, NULL, fan1);
 static SENSOR_DEVICE_ATTR(fan2_input, S_IRUGO, show_speed, NULL, fan2);
 static SENSOR_DEVICE_ATTR(fan3_input, S_IRUGO, show_speed, NULL, fan3);
@@ -215,6 +265,122 @@ static struct attribute *fan_attrs[] = {
 
 ATTRIBUTE_GROUPS(fan);
 
+/** fan LEDs devices */
+static struct cpld_led fan_leds[] = {
+    {
+        .param = {
+            .offset = fan1,
+            .mask = FAN_GRN_LED
+        },
+        .cdev = {
+            .name           = "as5820:fan1:green",
+            .brightness     = 1,
+            .max_brightness = 1,
+            .brightness_get = as5820_led_brightness_get,
+            .brightness_set = as5820_led_brightness_set,
+            .flags          = LED_CORE_SUSPENDRESUME,
+        }
+    },
+    {
+        .param = {
+            .offset = fan1,
+            .mask = FAN_RED_LED
+        },
+        .cdev = {
+            .name           = "as5820:fan1:red",
+            .brightness     = LED_OFF,
+            .max_brightness = 1,
+            .brightness_get = as5820_led_brightness_get,
+            .brightness_set = as5820_led_brightness_set,
+            .flags          = LED_CORE_SUSPENDRESUME,
+        }
+    },    
+    {
+        .param = {
+            .offset = fan2,
+            .mask = FAN_GRN_LED
+        },
+        .cdev = {
+            .name           = "as5820:fan2:green",
+            .brightness     = 1,
+            .max_brightness = 1,
+            .brightness_get = as5820_led_brightness_get,
+            .brightness_set = as5820_led_brightness_set,
+            .flags          = LED_CORE_SUSPENDRESUME,
+        }
+    },
+    {
+        .param = {
+            .offset = fan2,
+            .mask = FAN_RED_LED
+        },
+        .cdev = {
+            .name           = "as5820:fan2:red",
+            .brightness     = LED_OFF,
+            .max_brightness = 1,
+            .brightness_get = as5820_led_brightness_get,
+            .brightness_set = as5820_led_brightness_set,
+            .flags          = LED_CORE_SUSPENDRESUME,
+        }
+    }, 
+    {
+        .param = {
+            .offset = fan3,
+            .mask = FAN_GRN_LED
+        },
+        .cdev = {
+            .name           = "as5820:fan3:green",
+            .brightness     = 1,
+            .max_brightness = 1,
+            .brightness_get = as5820_led_brightness_get,
+            .brightness_set = as5820_led_brightness_set,
+            .flags          = LED_CORE_SUSPENDRESUME,
+        }
+    },
+    {
+        .param = {
+            .offset = fan3,
+            .mask = FAN_RED_LED
+        },
+        .cdev = {
+            .name           = "as5820:fan3:red",
+            .brightness     = LED_OFF,
+            .max_brightness = 1,
+            .brightness_get = as5820_led_brightness_get,
+            .brightness_set = as5820_led_brightness_set,
+            .flags          = LED_CORE_SUSPENDRESUME,
+        }
+    }, 
+    {
+        .param = {
+            .offset = fan4,
+            .mask = FAN_GRN_LED
+        },
+        .cdev = {
+            .name           = "as5820:fan4:green",
+            .brightness     = 1,
+            .max_brightness = 1,
+            .brightness_get = as5820_led_brightness_get,
+            .brightness_set = as5820_led_brightness_set,
+            .flags          = LED_CORE_SUSPENDRESUME,
+        }
+    },
+    {
+        .param = {
+            .offset = fan4,
+            .mask = FAN_RED_LED
+        },
+        .cdev = {
+            .name           = "as5820:fan4:red",
+            .brightness     = LED_OFF,
+            .max_brightness = 1,
+            .brightness_get = as5820_led_brightness_get,
+            .brightness_set = as5820_led_brightness_set,
+            .flags          = LED_CORE_SUSPENDRESUME,
+        }
+    }    
+};
+
 static struct resource fan_cpld_resources[] = {
     {
         .start  = 0xA140,
@@ -242,6 +408,7 @@ static int fan_cpld_drv_probe(struct platform_device *pdev)
 {
     struct resource *res;
     struct fan_cpld_data *data;
+    int i, err;
 
     data = devm_kzalloc(&pdev->dev, sizeof(struct fan_cpld_data),
         GFP_KERNEL);
@@ -259,13 +426,18 @@ static int fan_cpld_drv_probe(struct platform_device *pdev)
         return -1;
     }
 
-    //TODO: Create LEDs sysfs.
-
     data->fan_hwmon = devm_hwmon_device_register_with_groups(&pdev->dev, DRIVER_NAME, NULL, fan_groups);
     if( IS_ERR(data->fan_hwmon) ){
         printk(KERN_ERR "Error: canot create fan hwmon device\n");
         return PTR_ERR(data->fan_hwmon);
     }
+
+    for (i = 0; i < ARRAY_SIZE(fan_leds); i++) {
+        err = devm_led_classdev_register(&pdev->dev, &fan_leds[i].cdev);
+        if (err)
+            return err;
+    }
+
     return 0;
 }
 
@@ -284,7 +456,6 @@ static struct platform_driver fan_cpld_drv = {
 
 int fan_cpld_init(void)
 {
-    // Register platform device and platform driver
     platform_device_register(&fan_cpld_dev);
     platform_driver_register(&fan_cpld_drv);
     return 0;
@@ -292,7 +463,6 @@ int fan_cpld_init(void)
 
 void fan_cpld_exit(void)
 {
-    // Unregister platform device and platform driver
     platform_driver_unregister(&fan_cpld_drv);
     platform_device_unregister(&fan_cpld_dev);
 }
