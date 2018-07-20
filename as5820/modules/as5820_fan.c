@@ -106,7 +106,7 @@ static ssize_t show_wdt(struct device *dev, struct device_attribute *da,
     mutex_lock(&cpld_lock);
     wdt = inb(wdt_reg);
     mutex_unlock(&cpld_lock);
-    return sprintf(buf, "%d\n", FAN_WDT & 1u );
+    return sprintf(buf, "%d\n", wdt & 1u );
 }
 
 static ssize_t show_speed(struct device *dev, struct device_attribute *da,
@@ -171,7 +171,7 @@ static ssize_t show_prs(struct device *dev, struct device_attribute *da,
     mutex_lock(&cpld_lock);
     prs = inb(prs_reg);
     mutex_unlock(&cpld_lock);
-    return sprintf(buf, "%d\n", (prs >> FAN_DIR_BIT) & 1u ? 0 : 1);
+    return sprintf(buf, "%d\n", (prs >> FAN_PRS_BIT) & 1u ? 0 : 1);
 }
 
 static ssize_t show_dir(struct device *dev, struct device_attribute *da,
@@ -186,7 +186,7 @@ static ssize_t show_dir(struct device *dev, struct device_attribute *da,
     mutex_lock(&cpld_lock);
     dir = inb(dir_reg);
     mutex_unlock(&cpld_lock);
-    return sprintf(buf, "%s\n", (dir >> FAN_PRS_BIT) & 1u ? "B2F" : "F2B");
+    return sprintf(buf, "%s\n", (dir >> FAN_DIR_BIT) & 1u ? "B2F" : "F2B");
 }
 
 enum led_brightness as5820_led_brightness_get(struct led_classdev *led_cdev)
