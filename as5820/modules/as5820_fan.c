@@ -433,16 +433,28 @@ static int fan_cpld_drv_probe(struct platform_device *pdev)
     }
 
     for (i = 0; i < ARRAY_SIZE(fan_leds); i++) {
-        err = devm_led_classdev_register(&pdev->dev, &fan_leds[i].cdev);
+        err = led_classdev_register(&pdev->dev, &fan_leds[i].cdev);
         if (err)
-            return err;
+            goto err_free_leds;
     }
 
     return 0;
+
+
+err_free_leds:
+    for (i = 0; i < ARRAY_SIZE(fan_leds); i++) {
+        led_classdev_unregister(&fan_leds[i].cdev);
+    }
+    return err;
+
 }
 
 static int fan_cpld_drv_remove(struct platform_device *pdev)
 {
+    int i;
+    for (i = 0; i < ARRAY_SIZE(fan_leds); i++) {
+        led_classdev_unregister(&fan_leds[i].cdev);
+    }
     return 0;
 }
 
