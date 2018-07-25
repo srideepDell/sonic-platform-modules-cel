@@ -1850,10 +1850,10 @@ static int seastone2_drv_probe(struct platform_device *pdev)
 
        if(switch_addr != 0xFF){
 
-           if(prev_i2c_switch != ( (master_bus << 8) || switch_addr) ){
+           if(prev_i2c_switch != ( (master_bus << 8) | switch_addr) ){
                // Found the bus with PCA9548, trying to clear all switch in it.
                smbus_access(fpga_data->i2c_adapter[portid_count],switch_addr,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-               prev_i2c_switch = ( master_bus << 8 ) || switch_addr;
+               prev_i2c_switch = ( master_bus << 8 ) | switch_addr;
            }
        }
     }
