@@ -1502,9 +1502,10 @@ Stop:
 Done:
         iowrite8(1<<I2C_CR_BIT_MEN,pci_bar+REG_CR0);
         check(pci_bar+REG_CR0);
-        check(pci_bar+REG_SR0);  
+        check(pci_bar+REG_SR0);
+#ifdef DEBUG_KERN
         printk(KERN_INFO "END --- Error code  %d",error);
-
+#endif
         return error;
 }
 
