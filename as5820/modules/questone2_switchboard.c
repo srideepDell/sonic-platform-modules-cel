@@ -250,7 +250,7 @@ enum {
 
 #ifdef SEASTONE2
 #define VIRTUAL_I2C_QSFP_PORT           32
-#define VIRTUAL_I2C_SFP_PORT            2
+#define VIRTUAL_I2C_SFP_PORT            1
 #define VIRTUAL_I2C_CPLD_PORT           1
 #define VIRTUAL_I2C_POWER_CHIP_PORT     1
 #define VIRTUAL_I2C_CPLD_B_PORT         1
@@ -265,8 +265,7 @@ enum {
 #define SFF_PORT_TOTAL    VIRTUAL_I2C_QSFP_PORT+VIRTUAL_I2C_SFP_PORT
 #else
 #define VIRTUAL_I2C_SFP_PORT            48
-#define VIRTUAL_I2C_QSFP_PORT           4
-#define VIRTUAL_I2C_QSFP_DD_PORT        2
+#define VIRTUAL_I2C_QSFP_PORT           8
 #define VIRTUAL_I2C_CPLD_PORT           1
 #define VIRTUAL_I2C_POWER_CHIP_PORT     1
 #define VIRTUAL_I2C_CPLD_B_PORT         1
@@ -276,9 +275,9 @@ enum {
 #define VIRTUAL_I2C_LM75                1
 
 #define VIRTUAL_I2C_PORT_LENGTH \
-            VIRTUAL_I2C_SFP_PORT+VIRTUAL_I2C_QSFP_DD_PORT+VIRTUAL_I2C_QSFP_PORT+VIRTUAL_I2C_POWER_CHIP_PORT+VIRTUAL_I2C_CPLD_PORT+VIRTUAL_I2C_CPLD_B_PORT+VIRTUAL_I2C_PSU+VIRTUAL_I2C_FAN_TRAY+VIRTUAL_I2C_POWER_MON+VIRTUAL_I2C_LM75
+            VIRTUAL_I2C_SFP_PORT+VIRTUAL_I2C_QSFP_PORT+VIRTUAL_I2C_POWER_CHIP_PORT+VIRTUAL_I2C_CPLD_PORT+VIRTUAL_I2C_CPLD_B_PORT+VIRTUAL_I2C_PSU+VIRTUAL_I2C_FAN_TRAY+VIRTUAL_I2C_POWER_MON+VIRTUAL_I2C_LM75
 
-#define SFF_PORT_TOTAL    VIRTUAL_I2C_QSFP_DD_PORT+VIRTUAL_I2C_QSFP_PORT+VIRTUAL_I2C_SFP_PORT
+#define SFF_PORT_TOTAL    VIRTUAL_I2C_QSFP_PORT+VIRTUAL_I2C_SFP_PORT
 #endif
 
 #define VIRTUAL_I2C_CPLD_INDEX SFF_PORT_TOTAL
@@ -381,9 +380,9 @@ static struct i2c_switch fpga_i2c_bus_dev[] = {
     {I2C_MASTER_CH_10,0x76,4,SFP,"SFP37"},{I2C_MASTER_CH_10,0x76,5,SFP,"SFP38"},{I2C_MASTER_CH_10,0x76,6,SFP,"SFP39"},{I2C_MASTER_CH_10,0x76,7,SFP,"SFP40"},
     {I2C_MASTER_CH_10,0x77,0,SFP,"SFP41"},{I2C_MASTER_CH_10,0x77,1,SFP,"SFP42"},{I2C_MASTER_CH_10,0x77,2,SFP,"SFP43"},{I2C_MASTER_CH_10,0x77,3,SFP,"SFP44"},
     {I2C_MASTER_CH_10,0x77,4,SFP,"SFP45"},{I2C_MASTER_CH_10,0x77,5,SFP,"SFP46"},{I2C_MASTER_CH_10,0x77,6,SFP,"SFP47"},{I2C_MASTER_CH_10,0x77,7,SFP,"SFP48"},
-    /* BUS2 QSFP28 and QSFP-DD Exported as virtual bus */
-    {I2C_MASTER_CH_2,0x74,6,QSFP,"QSFP1"},{I2C_MASTER_CH_2,0x74,7,QSFP,"QSFP2"},{I2C_MASTER_CH_2,0x74,0,QSFP,"QSFP3"},{I2C_MASTER_CH_2,0x74,1,QSFP,"QSFP4"},
-    {I2C_MASTER_CH_2,0x74,2,QSFP,"QSFP5"},{I2C_MASTER_CH_2,0x74,3,QSFP,"QSFP6"},
+    /* BUS2 QSFP28 Exported as virtual bus */
+    {I2C_MASTER_CH_2,0x74,4,QSFP,"QSFP1"},{I2C_MASTER_CH_2,0x74,5,QSFP,"QSFP2"},{I2C_MASTER_CH_2,0x74,6,QSFP,"QSFP3"},{I2C_MASTER_CH_2,0x74,7,QSFP,"QSFP4"},
+    {I2C_MASTER_CH_2,0x74,0,QSFP,"QSFP5"},{I2C_MASTER_CH_2,0x74,1,QSFP,"QSFP6"},{I2C_MASTER_CH_2,0x74,2,QSFP,"QSFP7"},{I2C_MASTER_CH_2,0x74,3,QSFP,"QSFP8"},
     /* BUS3 CPLD Access via SYSFS */
     {I2C_MASTER_CH_3,0xFF,0,NONE,"CPLD"},
     /* BUS5 POWER CHIP Exported as virtual bus */
@@ -1507,7 +1506,6 @@ Done:
 #ifdef DEBUG_KERN
         printk(KERN_INFO "END --- Error code  %d",error);
 #endif
-
         return error;
 }
 
@@ -1683,6 +1681,7 @@ static int seastone2_drv_probe(struct platform_device *pdev)
     int ret = 0;
     int portid_count;
     uint8_t cpld1_version, cpld2_version;
+    uint16_t prev_i2c_switch = 0;
 
     /* The device class need to be instantiated before this function called */
     BUG_ON(fpgafwclass == NULL);
@@ -1842,29 +1841,23 @@ static int seastone2_drv_probe(struct platform_device *pdev)
     printk(KERN_INFO "CPLD2 VERSON: %2.2x\n", cpld2_version);
 
     /* Init I2C buses that has PCA9548 switch device. */
-#ifdef SEASTONE2
-    // BUS 1
-    smbus_access(fpga_data->i2c_adapter[32],0x72,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-    // BUS 2
-    smbus_access(fpga_data->i2c_adapter[0],0x72,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-    smbus_access(fpga_data->i2c_adapter[0],0x73,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-    smbus_access(fpga_data->i2c_adapter[0],0x74,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-    smbus_access(fpga_data->i2c_adapter[0],0x75,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-    // BUS 7
-    smbus_access(fpga_data->i2c_adapter[38],0x77,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-#else
-    // BUS 1
-    smbus_access(fpga_data->i2c_adapter[0],0x72,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-    smbus_access(fpga_data->i2c_adapter[0],0x73,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-    smbus_access(fpga_data->i2c_adapter[0],0x74,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-    smbus_access(fpga_data->i2c_adapter[0],0x75,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-    smbus_access(fpga_data->i2c_adapter[0],0x76,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-    smbus_access(fpga_data->i2c_adapter[0],0x77,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-    // BUS 2
-    smbus_access(fpga_data->i2c_adapter[48],0x74,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-    // BUS 7
-    smbus_access(fpga_data->i2c_adapter[58],0x77,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-#endif
+    for(portid_count = 0; portid_count < VIRTUAL_I2C_PORT_LENGTH; portid_count++){
+
+       struct i2c_dev_data *dev_data;
+       dev_data = i2c_get_adapdata(fpga_data->i2c_adapter[portid_count]);
+       unsigned char master_bus = dev_data->pca9548.master_bus;
+       unsigned char switch_addr = dev_data->pca9548.switch_addr;
+       unsigned char channel = dev_data->pca9548.channel;
+
+       if(switch_addr != 0xFF){
+
+           if(prev_i2c_switch != ( (master_bus << 8) | switch_addr) ){
+               // Found the bus with PCA9548, trying to clear all switch in it.
+               smbus_access(fpga_data->i2c_adapter[portid_count],switch_addr,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
+               prev_i2c_switch = ( master_bus << 8 ) | switch_addr;
+           }
+       }
+    }
     return 0;
 }
 
