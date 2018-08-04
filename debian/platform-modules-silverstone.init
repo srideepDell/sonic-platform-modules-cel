@@ -11,6 +11,8 @@
 # Short-Description: Setup SilverStone board.
 ### END INIT INFO
 
+# TODO: Add platform module ko load here!
+
 case "$1" in
 start)
         echo -n "Setting up board... "
@@ -18,6 +20,16 @@ start)
         depmod -a
         modprobe i2c-dev
         modprobe i2c-mux-pca954x
+        modprobe baseboard
+        modprobe switchboard
+        modprobe mc24lc64t
+
+        # Instantiate TLV EEPROM device on I801 bus 
+        devname=`cat /sys/bus/i2c/devices/i2c-0/name`
+        if [[ $devname == 'SMBus I801 adapter at '* ]]; then
+                echo 24lc64t 0x56 > /sys/bus/i2c/devices/i2c-0/new_device
+        fi
+        decode-syseeprom --init 2> /dev/null &
 
         echo "done."
         ;;
