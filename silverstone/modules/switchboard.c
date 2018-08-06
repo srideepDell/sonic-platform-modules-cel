@@ -24,9 +24,12 @@
  *
  */
 
+// CHANGED: Add I2C clients instantitate and symlink
+// CHANGED: Patch the FPP port type patch from Questone2
+// CHANGED: Update version to 1.0.0
 
 #ifndef TEST_MODE
-#define MOD_VERSION "0.2.1"
+#define MOD_VERSION "1.0.0"
 #else
 #define MOD_VERSION "TEST"
 #endif
@@ -290,10 +293,17 @@ static struct mutex fpga_i2c_master_locks[I2C_MASTER_CH_TOTAL];
 /* Store lasted switch address and channel */
 static uint16_t fpga_i2c_lasted_access_port[I2C_MASTER_CH_TOTAL];
 
+enum PORT_TYPE {
+    NONE,
+    QSFP,
+    SFP
+};
+
 struct i2c_switch {
     unsigned char master_bus;   // I2C bus number
     unsigned char switch_addr;  // PCA9548 device address, 0xFF if directly connect to a bus.
     unsigned char channel;      // PCA9548 channel number. If the switch_addr is 0xFF, this value is ignored.
+    enum PORT_TYPE port_type;   // QSFP/SFP tranceiver port type.
     char calling_name[20];      // Calling name.
 };
 
@@ -305,53 +315,53 @@ struct i2c_dev_data {
 /* PREDEFINED I2C SWITCH DEVICE TOPOLOGY */
 static struct i2c_switch fpga_i2c_bus_dev[] = {
     /* BUS3 QSFP Exported as virtual bus */
-    {I2C_MASTER_CH_3, 0x71, 2, "QSFP1"}, {I2C_MASTER_CH_3, 0x71, 3, "QSFP2"},
-    {I2C_MASTER_CH_3, 0x71, 0, "QSFP3"}, {I2C_MASTER_CH_3, 0x71, 1, "QSFP4"},
-    {I2C_MASTER_CH_3, 0x71, 6, "QSFP5"}, {I2C_MASTER_CH_3, 0x71, 5, "QSFP6"},
-    {I2C_MASTER_CH_3, 0x73, 7, "QSFP7"}, {I2C_MASTER_CH_3, 0x71, 4, "QSFP8"},
+    {I2C_MASTER_CH_3, 0x71, 2, QSFP, "QSFP1"}, {I2C_MASTER_CH_3, 0x71, 3, QSFP, "QSFP2"},
+    {I2C_MASTER_CH_3, 0x71, 0, QSFP, "QSFP3"}, {I2C_MASTER_CH_3, 0x71, 1, QSFP, "QSFP4"},
+    {I2C_MASTER_CH_3, 0x71, 6, QSFP, "QSFP5"}, {I2C_MASTER_CH_3, 0x71, 5, QSFP, "QSFP6"},
+    {I2C_MASTER_CH_3, 0x73, 7, QSFP, "QSFP7"}, {I2C_MASTER_CH_3, 0x71, 4, QSFP, "QSFP8"},
 
-    {I2C_MASTER_CH_3, 0x73, 4, "QSFP9"}, {I2C_MASTER_CH_3, 0x73, 3, "QSFP10"},
-    {I2C_MASTER_CH_3, 0x73, 6, "QSFP11"}, {I2C_MASTER_CH_3, 0x73, 2, "QSFP12"},
-    {I2C_MASTER_CH_3, 0x73, 1, "QSFP13"}, {I2C_MASTER_CH_3, 0x73, 5, "QSFP14"},
-    {I2C_MASTER_CH_3, 0x71, 7, "QSFP15"}, {I2C_MASTER_CH_3, 0x73, 0, "QSFP16"},
+    {I2C_MASTER_CH_3, 0x73, 4, QSFP, "QSFP9"},  {I2C_MASTER_CH_3, 0x73, 3, QSFP, "QSFP10"},
+    {I2C_MASTER_CH_3, 0x73, 6, QSFP, "QSFP11"}, {I2C_MASTER_CH_3, 0x73, 2, QSFP, "QSFP12"},
+    {I2C_MASTER_CH_3, 0x73, 1, QSFP, "QSFP13"}, {I2C_MASTER_CH_3, 0x73, 5, QSFP, "QSFP14"},
+    {I2C_MASTER_CH_3, 0x71, 7, QSFP, "QSFP15"}, {I2C_MASTER_CH_3, 0x73, 0, QSFP, "QSFP16"},
 
-    {I2C_MASTER_CH_3, 0x72, 1, "QSFP17"}, {I2C_MASTER_CH_3, 0x72, 7, "QSFP18"},
-    {I2C_MASTER_CH_3, 0x72, 4, "QSFP19"}, {I2C_MASTER_CH_3, 0x72, 0, "QSFP20"},
-    {I2C_MASTER_CH_3, 0x72, 5, "QSFP21"}, {I2C_MASTER_CH_3, 0x72, 2, "QSFP22"},
-    {I2C_MASTER_CH_3, 0x70, 5, "QSFP23"}, {I2C_MASTER_CH_3, 0x72, 6, "QSFP24"},
+    {I2C_MASTER_CH_3, 0x72, 1, QSFP, "QSFP17"}, {I2C_MASTER_CH_3, 0x72, 7, QSFP, "QSFP18"},
+    {I2C_MASTER_CH_3, 0x72, 4, QSFP, "QSFP19"}, {I2C_MASTER_CH_3, 0x72, 0, QSFP, "QSFP20"},
+    {I2C_MASTER_CH_3, 0x72, 5, QSFP, "QSFP21"}, {I2C_MASTER_CH_3, 0x72, 2, QSFP, "QSFP22"},
+    {I2C_MASTER_CH_3, 0x70, 5, QSFP, "QSFP23"}, {I2C_MASTER_CH_3, 0x72, 6, QSFP, "QSFP24"},
 
-    {I2C_MASTER_CH_3, 0x72, 3, "QSFP25"}, {I2C_MASTER_CH_3, 0x70, 6, "QSFP26"},
-    {I2C_MASTER_CH_3, 0x70, 0, "QSFP27"}, {I2C_MASTER_CH_3, 0x70, 7, "QSFP28"},
-    {I2C_MASTER_CH_3, 0x70, 2, "QSFP29"}, {I2C_MASTER_CH_3, 0x70, 4, "QSFP30"},
-    {I2C_MASTER_CH_3, 0x70, 3, "QSFP31"}, {I2C_MASTER_CH_3, 0x70, 1, "QSFP32"},
+    {I2C_MASTER_CH_3, 0x72, 3, QSFP, "QSFP25"}, {I2C_MASTER_CH_3, 0x70, 6, QSFP, "QSFP26"},
+    {I2C_MASTER_CH_3, 0x70, 0, QSFP, "QSFP27"}, {I2C_MASTER_CH_3, 0x70, 7, QSFP, "QSFP28"},
+    {I2C_MASTER_CH_3, 0x70, 2, QSFP, "QSFP29"}, {I2C_MASTER_CH_3, 0x70, 4, QSFP, "QSFP30"},
+    {I2C_MASTER_CH_3, 0x70, 3, QSFP, "QSFP31"}, {I2C_MASTER_CH_3, 0x70, 1, QSFP, "QSFP32"},
     /* BUS1 SFP+ Exported as virtual bus */
-    {I2C_MASTER_CH_1, 0xFF, 0, "SFP1"},
+    {I2C_MASTER_CH_1, 0xFF, 0, SFP, "SFP1"},
     /* BUS2 SFP+ Exported as virtual bus */
-    {I2C_MASTER_CH_2, 0xFF, 0, "SFP2"},
+    {I2C_MASTER_CH_2, 0xFF, 0, SFP, "SFP2"},
     /* BUS4 CPLD Access via I2C */
-    {I2C_MASTER_CH_4, 0xFF, 0, "CPLD_S"},
+    {I2C_MASTER_CH_4, 0xFF, 0, NONE, "CPLD_S"},
     /* BUS5 CPLD_B */
-    {I2C_MASTER_CH_5, 0xFF, 0, "CPLD_B"},
+    {I2C_MASTER_CH_5, 0xFF, 0, NONE, "CPLD_B"},
     /* BUS6 POWER CHIP Exported as virtual bus */
-    {I2C_MASTER_CH_6, 0xFF, 0, "VR"},
+    {I2C_MASTER_CH_6, 0xFF, 0, NONE, "VR"},
     /* BUS7 PSU */
-    {I2C_MASTER_CH_7, 0xFF, 0, "PSU"},
+    {I2C_MASTER_CH_7, 0xFF, 0, NONE, "PSU"},
     /* BUS8 FAN */
-    {I2C_MASTER_CH_8, 0xFF, 0, "CPLD_fan"},
+    {I2C_MASTER_CH_8, 0xFF, 0, NONE, "CPLD_fan"},
     /* Note: Channel 2 has no hardware connected */
-    {I2C_MASTER_CH_8, 0x77, 4, "FAN1"}, {I2C_MASTER_CH_8, 0x77, 5, "FAN2"},
-    {I2C_MASTER_CH_8, 0x77, 6, "FAN3"}, {I2C_MASTER_CH_8, 0x77, 3, "FAN4"},
-    {I2C_MASTER_CH_8, 0x77, 0, "FAN5"}, {I2C_MASTER_CH_8, 0x77, 1, "FAN6"}, {I2C_MASTER_CH_8, 0x77, 2, "FAN7"},
+    {I2C_MASTER_CH_8, 0x77, 4, NONE, "FAN1"}, {I2C_MASTER_CH_8, 0x77, 5, NONE, "FAN2"},
+    {I2C_MASTER_CH_8, 0x77, 6, NONE, "FAN3"}, {I2C_MASTER_CH_8, 0x77, 3, NONE, "FAN4"},
+    {I2C_MASTER_CH_8, 0x77, 0, NONE, "FAN5"}, {I2C_MASTER_CH_8, 0x77, 1, NONE, "FAN6"}, {I2C_MASTER_CH_8, 0x77, 2, NONE, "FAN7"},
     /* BUS9 POWER MONITOR */
-    {I2C_MASTER_CH_9, 0xFF, 0, "UCD90120"},
+    {I2C_MASTER_CH_9,  0xFF, 0, NONE, "UCD90120"},
     /* BUS10 LM75 */
-    {I2C_MASTER_CH_10, 0xFF, 0, "LM75"},
+    {I2C_MASTER_CH_10, 0xFF, 0, NONE, "LM75"},
     /* BUS11 SI5344D */
-    {I2C_MASTER_CH_11, 0xFF, 0, "SI5344D"},
+    {I2C_MASTER_CH_11, 0xFF, 0, NONE, "SI5344D"},
     /* BUS12 PCIe Buffer */
-    {I2C_MASTER_CH_12, 0xFF, 0, "PCIe Buffer"},
+    {I2C_MASTER_CH_12, 0xFF, 0, NONE, "PCIe Buffer"},
     /* BUS13 MAX6696 */
-    {I2C_MASTER_CH_13, 0xFF, 0, "MAX6696"},
+    {I2C_MASTER_CH_13, 0xFF, 0, NONE, "MAX6696"},
 };
 
 #define VIRTUAL_I2C_PORT_LENGTH ARRAY_SIZE(fpga_i2c_bus_dev)
@@ -381,6 +391,7 @@ struct silverstone_fpga_data {
 
 struct sff_device_data {
     int portid;
+    enum PORT_TYPE port_type;
 };
 
 struct silverstone_fpga_data *fpga_data;
@@ -1086,6 +1097,7 @@ static struct device * silverstone_sff_init(int portid) {
     }
     /* The QSFP port ID start from 1 */
     new_data->portid = portid + 1;
+    new_data->port_type = fpga_i2c_bus_dev[portid].port_type;
     new_device = device_create_with_groups(fpgafwclass, sff_dev, MKDEV(0, 0), new_data, sff_attr_grps, "%s", fpga_i2c_bus_dev[portid].calling_name);
     if (IS_ERR(new_device)) {
         printk(KERN_ALERT "Cannot create sff device @port%d", portid);
@@ -1597,10 +1609,12 @@ static struct platform_device silverstone_dev = {
 
 /**
  * Board info for QSFP/SFP+ eeprom.
- * Note: Using sff8436 as I2C eeprom driver.
+ * Note: Using OOM optoe as I2C eeprom driver.
+ * https://www.opencompute.org/wiki/Networking/SpecsAndDesigns#Open_Optical_Monitoring
  */
-static struct i2c_board_info sff8436_eeprom_info = {
-    I2C_BOARD_INFO("sff8436", 0x50),
+static struct i2c_board_info sff8436_eeprom_info[] = {
+    { I2C_BOARD_INFO("optoe1", 0x50) }, //For QSFP w/ sff8436
+    { I2C_BOARD_INFO("optoe2", 0x50) }, //For SFP+ w/ sff8472
 };
 
 static int silverstone_drv_probe(struct platform_device *pdev)
@@ -1610,6 +1624,7 @@ static int silverstone_drv_probe(struct platform_device *pdev)
     int portid_count;
     uint8_t cpld1_version, cpld2_version;
     uint16_t prev_i2c_switch = 0;
+    struct sff_device_data *sff_data;
 
     /* The device class need to be instantiated before this function called */
     BUG_ON(fpgafwclass == NULL);
@@ -1739,6 +1754,17 @@ static int silverstone_drv_probe(struct platform_device *pdev)
         struct i2c_adapter *i2c_adap = fpga_data->i2c_adapter[portid_count];
         if (i2c_adap) {
             fpga_data->sff_devices[portid_count] = silverstone_sff_init(portid_count);
+            sff_data = dev_get_drvdata(fpga_data->sff_devices[portid_count]);
+            BUG_ON(sff_data == NULL);
+            if ( sff_data->port_type == QSFP ) {
+                fpga_data->sff_i2c_clients[portid_count] = i2c_new_device(i2c_adap, &sff8436_eeprom_info[0]);
+            } else {
+                fpga_data->sff_i2c_clients[portid_count] = i2c_new_device(i2c_adap, &sff8436_eeprom_info[1]);
+            }
+            sff_data = NULL;
+            sysfs_create_link(&fpga_data->sff_devices[portid_count]->kobj,
+                              &fpga_data->sff_i2c_clients[portid_count]->dev.kobj,
+                              "i2c");
         }
     }
 
@@ -1783,6 +1809,11 @@ static int silverstone_drv_remove(struct platform_device *pdev)
 {
     int portid_count;
     struct sff_device_data *rem_data;
+
+    for (portid_count = 0; portid_count < SFF_PORT_TOTAL; portid_count++) {
+        sysfs_remove_link(&fpga_data->sff_devices[portid_count]->kobj, "i2c");
+        i2c_unregister_device(fpga_data->sff_i2c_clients[portid_count]);
+    }
 
     for (portid_count = 0 ; portid_count < VIRTUAL_I2C_PORT_LENGTH ; portid_count++) {
         if (fpga_data->i2c_adapter[portid_count] != NULL) {
@@ -1998,19 +2029,19 @@ static int fpgafw_init(void) {
     if (IS_ERR(fpgafwclass)) {               // Check for error and clean up if there is
         unregister_chrdev(majorNumber, DEVICE_NAME);
         printk(KERN_ALERT "Failed to register device class\n");
-        return PTR_ERR(fpgafwclass);          // Correct way to return an error on a pointer
+        return PTR_ERR(fpgafwclass);         
     }
     printk(KERN_INFO "Device class registered correctly\n");
 
     // Register the device driver
     fpgafwdev = device_create(fpgafwclass, NULL, MKDEV(majorNumber, 0), NULL, DEVICE_NAME);
-    if (IS_ERR(fpgafwdev)) {              // Clean up if there is an error
+    if (IS_ERR(fpgafwdev)) {                  // Clean up if there is an error
         class_destroy(fpgafwclass);           // Repeated code but the alternative is goto statements
         unregister_chrdev(majorNumber, DEVICE_NAME);
         printk(KERN_ALERT "Failed to create the FW upgrade device node\n");
         return PTR_ERR(fpgafwdev);
     }
-    printk(KERN_INFO "FPGA fw upgrade device node created correctly\n"); // Made it! device was initialized
+    printk(KERN_INFO "FPGA fw upgrade device node created correctly\n");
     return 0;
 }
 
