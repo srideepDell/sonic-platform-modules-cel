@@ -24,10 +24,6 @@
  *
  */
 
-// CHANGED: Add I2C clients instantitate and symlink
-// CHANGED: Patch the FPP port type patch from Questone2
-// CHANGED: Update version to 1.0.0
-
 #ifndef TEST_MODE
 #define MOD_VERSION "1.0.0"
 #else
@@ -2029,7 +2025,7 @@ static int fpgafw_init(void) {
     if (IS_ERR(fpgafwclass)) {               // Check for error and clean up if there is
         unregister_chrdev(majorNumber, DEVICE_NAME);
         printk(KERN_ALERT "Failed to register device class\n");
-        return PTR_ERR(fpgafwclass);         
+        return PTR_ERR(fpgafwclass);
     }
     printk(KERN_INFO "Device class registered correctly\n");
 
