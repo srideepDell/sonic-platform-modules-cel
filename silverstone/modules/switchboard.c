@@ -25,7 +25,7 @@
  */
 
 #ifndef TEST_MODE
-#define MOD_VERSION "1.0.0"
+#define MOD_VERSION "1.0.1"
 #else
 #define MOD_VERSION "TEST"
 #endif
@@ -1034,7 +1034,7 @@ DEVICE_ATTR_RW(port_led_mode);
 // Only work when port_led_mode set to 1
 static ssize_t port_led_color_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-    // value can be "off", "green", "amber", "both"
+    // value can be R/G/B/C/M/Y/W/OFF
     __u8 led_color1, led_color2;
     int err;
     err = fpga_i2c_access(fpga_data->i2c_adapter[VIRTUAL_I2C_CPLD_INDEX], CPLD1_SLAVE_ADDR, 0x00, I2C_SMBUS_READ, 0x09, I2C_SMBUS_BYTE_DATA, (union i2c_smbus_data*)&led_color1);
@@ -1044,8 +1044,10 @@ static ssize_t port_led_color_show(struct device *dev, struct device_attribute *
     if (err < 0)
         return err;
     return sprintf(buf, "%s %s\n",
-                   led_color1 == 0x03 ? "off" : led_color1 == 0x02 ? "green" : led_color1 == 0x01 ? "amber" : "both",
-                   led_color2 == 0x03 ? "off" : led_color2 == 0x02 ? "green" : led_color2 == 0x01 ? "amber" : "both");
+                   led_color1 == 0x07 ? "off" : led_color1 == 0x06 ? "green" : led_color1 == 0x05 ?  "red" : led_color1 == 0x04 ? 
+                    "yellow" : led_color1 == 0x03 ? "blue" : led_color1 == 0x02 ?  "cyan" : led_color1 == 0x01 ?  "magenta" : "white",
+                   led_color1 == 0x07 ? "off" : led_color1 == 0x06 ? "green" : led_color1 == 0x05 ?  "red" : led_color1 == 0x04 ? 
+                    "yellow" : led_color1 == 0x03 ? "blue" : led_color1 == 0x02 ?  "cyan" : led_color1 == 0x01 ?  "magenta" : "white");
 }
 
 static ssize_t port_led_color_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
@@ -1053,12 +1055,20 @@ static ssize_t port_led_color_store(struct device *dev, struct device_attribute 
     int status;
     __u8 led_color;
     if (sysfs_streq(buf, "off")) {
-        led_color = 0x03;
+        led_color = 0x07;
     } else if (sysfs_streq(buf, "green")) {
+        led_color = 0x06;
+    } else if (sysfs_streq(buf, "red")) {
+        led_color = 0x05;
+    } else if (sysfs_streq(buf, "yellow")) {
+        led_color = 0x04;
+    } else if (sysfs_streq(buf, "blue")) {
+        led_color = 0x03;
+    } else if (sysfs_streq(buf, "cyan")) {
         led_color = 0x02;
-    } else if (sysfs_streq(buf, "amber")) {
+    } else if (sysfs_streq(buf, "magenta")) {
         led_color = 0x01;
-    } else if (sysfs_streq(buf, "both")) {
+    } else if (sysfs_streq(buf, "white")) {
         led_color = 0x00;
     } else {
         status = -EINVAL;
