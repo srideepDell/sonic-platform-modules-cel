@@ -76,6 +76,9 @@ start)
         modprobe dx010_cpld
         sleep 2
 
+        # Init platform gpios
+        modprobe dx010-fan-led
+
         # Turn off/down lpmod by defult (0 - Normal, 1 - Low Pow)
         echo 0x00000000 > /sys/devices/platform/dx010_cpld/qsfp_lpmode
 
