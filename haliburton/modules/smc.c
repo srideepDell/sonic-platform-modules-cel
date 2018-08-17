@@ -9,31 +9,29 @@
  * (at your option) any later version.
  */
 
-#include <linux/interrupt.h>
-#include <linux/module.h>
-#include <linux/pci.h>
-#include <linux/kernel.h>
-#include <linux/stddef.h>
-#include <linux/delay.h>
-#include <linux/ioport.h>
-#include <linux/init.h>
-#include <linux/i2c.h>
 #include <linux/acpi.h>
-#include <linux/io.h>
 #include <linux/dmi.h>
-#include <linux/slab.h>
-#include <linux/wait.h>
 #include <linux/err.h>
+#include <linux/hwmon-sysfs.h>
+#include <linux/init.h>
+#include <linux/interrupt.h>
+#include <linux/io.h>
+#include <linux/ioport.h>
+#include <linux/kernel.h>
+#include <linux/leds.h>
+#include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/slab.h>
+#include <linux/stddef.h>
+#include <linux/string.h>
 #include <linux/types.h>
 #include <uapi/linux/stat.h>
-#include <linux/string.h>
 
 // Changed: (opt) Add LED control sysfs
 // Changed: Add PSU status sysfs*
 // Changed: Add SFP mod ctrl sysfs*
+// Changed: (opt) Add fan direction sysfs
 // TODO: (opt) Add fan LED sysfs
-// TODO: (opt) Add fan direction sysfs
 
 #define DRIVER_NAME "e1031.smc"
 
@@ -126,12 +124,6 @@ enum MASTER_LED {
  */
 #define SFP_TXCTRL      0x0255
 
-/* SFP PORT BIT OFFSET */
-#define SFP4            3
-#define SFP3            2
-#define SFP2            1
-#define SFP1            0
-
 struct cpld_data {
     struct mutex       cpld_lock;
     uint16_t           read_addr;
@@ -145,6 +137,11 @@ struct sfp_device_data {
 
 struct class *celplatform;
 struct cpld_data *cpld_data;
+
+struct index_device_attribute {
+    struct device_attribute dev_attr;
+    int index;
+};
 
 static ssize_t scratch_show(struct device *dev, struct device_attribute *devattr,
                             char *buf)
@@ -402,12 +399,31 @@ static ssize_t psuR_status_show(struct device *dev, struct device_attribute *dev
 static DEVICE_ATTR_RO(psuR_status);
 
 
+static ssize_t fan_dir_show(struct device *dev, struct device_attribute *devattr,
+                                char *buf)
+{
+    struct sensor_device_attribute *sa = to_sensor_dev_attr(devattr);
+    int index = sa->index;
+    unsigned char data = 0;
+
+    // Use index to determind the status bit
+    mutex_lock(&cpld_data->cpld_lock);
+    data = inb(DEV_STAT);
+    mutex_unlock(&cpld_data->cpld_lock);
+    data = ( data >> index ) & 1U;
+    return sprintf(buf, "%s\n", data ? "B2F":"F2B" );
+}
+static SENSOR_DEVICE_ATTR(fan1_dir, S_IRUGO, fan_dir_show, NULL, FAN_1);
+static SENSOR_DEVICE_ATTR(fan2_dir, S_IRUGO, fan_dir_show, NULL, FAN_2);
+static SENSOR_DEVICE_ATTR(fan3_dir, S_IRUGO, fan_dir_show, NULL, FAN_3);
+
+
 static struct attribute *cpld_attrs[] = {
     &dev_attr_version.attr,
     &dev_attr_scratch.attr,
     &dev_attr_getreg.attr,
     &dev_attr_setreg.attr,
-    // LEDS
+    // LEDs
     &dev_attr_status_led.attr,
     &dev_attr_master_led.attr,
     // PSUs
@@ -415,6 +431,10 @@ static struct attribute *cpld_attrs[] = {
     &dev_attr_psuR_prs.attr,
     &dev_attr_psuL_status.attr,
     &dev_attr_psuR_status.attr,
+    // FANs
+    &sensor_dev_attr_fan1_dir.dev_attr.attr,
+    &sensor_dev_attr_fan2_dir.dev_attr.attr,
+    &sensor_dev_attr_fan3_dir.dev_attr.attr,
     NULL,
 };
 
