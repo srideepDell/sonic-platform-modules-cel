@@ -27,11 +27,6 @@
 #include <linux/types.h>
 #include <uapi/linux/stat.h>
 
-// Changed: (opt) Add LED control sysfs
-// Changed: Add PSU status sysfs*
-// Changed: Add SFP mod ctrl sysfs*
-// Changed: (opt) Add fan direction sysfs
-// TODO: (opt) Add fan LED sysfs
 
 #define DRIVER_NAME "e1031.smc"
 
@@ -294,7 +289,6 @@ static ssize_t status_led_store(struct device *dev, struct device_attribute *dev
     return count;
 }
 
-
 /**
  * Show master led
  * @param  dev     kernel device
@@ -516,6 +510,48 @@ static ssize_t sfp_rs_store(struct device *dev, struct device_attribute *attr, c
     return status;
 }
 
+static ssize_t fan_led_show(struct device *dev, struct device_attribute *devattr,
+                            char *buf)
+{
+    struct sensor_device_attribute *sa = to_sensor_dev_attr(devattr);
+    int index = sa->index;
+    unsigned char data = 0;
+    char *led_str[5] = {"green", "green-blink", "amber", "amber-blink", "off"};
+
+    // Use index to determind the status bit
+    mutex_lock(&cpld_data->cpld_lock);
+    data = inb(FAN_LED_1 + index);
+    data = data & 0x7;
+    mutex_unlock(&cpld_data->cpld_lock);
+    return sprintf(buf, "%s\n", led_str[data]);
+}
+
+static ssize_t fan_led_store(struct device *dev, struct device_attribute *devattr,
+                             const char *buf, size_t count)
+{
+    struct sensor_device_attribute *sa = to_sensor_dev_attr(devattr);
+    int index = sa->index;
+    unsigned char led_status = 0;
+
+    if (sysfs_streq(buf, "off")) {
+        led_status = fan_led_off;
+    } else if (sysfs_streq(buf, "green")) {
+        led_status = fan_led_grn;
+    } else if (sysfs_streq(buf, "amber")) {
+        led_status = fan_led_amb;
+    } else if (sysfs_streq(buf, "green-blink")) {
+        led_status = fan_led_grn_bnk;
+    } else if (sysfs_streq(buf, "amber-blink")) {
+        led_status = fan_led_amb_bnk;
+    } else {
+        count = -EINVAL;
+        return count;
+    }
+    mutex_lock(&cpld_data->cpld_lock);
+    outb(led_status, FAN_LED_1 + index);
+    mutex_unlock(&cpld_data->cpld_lock);
+    return count;
+}
 
 static DEVICE_ATTR_RO(version);
 static DEVICE_ATTR_RW(scratch);
@@ -534,6 +570,9 @@ static DEVICE_ATTR_RW(sfp_rs);
 static SENSOR_DEVICE_ATTR(fan1_dir, S_IRUGO, fan_dir_show, NULL, FAN_1);
 static SENSOR_DEVICE_ATTR(fan2_dir, S_IRUGO, fan_dir_show, NULL, FAN_2);
 static SENSOR_DEVICE_ATTR(fan3_dir, S_IRUGO, fan_dir_show, NULL, FAN_3);
+static SENSOR_DEVICE_ATTR(fan1_led, S_IWUSR | S_IRUGO, fan_led_show, fan_led_store, FAN_1);
+static SENSOR_DEVICE_ATTR(fan2_led, S_IWUSR | S_IRUGO, fan_led_show, fan_led_store, FAN_2);
+static SENSOR_DEVICE_ATTR(fan3_led, S_IWUSR | S_IRUGO, fan_led_show, fan_led_store, FAN_3);
 
 static struct attribute *cpld_attrs[] = {
     &dev_attr_version.attr,
@@ -552,6 +591,9 @@ static struct attribute *cpld_attrs[] = {
     &sensor_dev_attr_fan1_dir.dev_attr.attr,
     &sensor_dev_attr_fan2_dir.dev_attr.attr,
     &sensor_dev_attr_fan3_dir.dev_attr.attr,
+    &sensor_dev_attr_fan1_led.dev_attr.attr,
+    &sensor_dev_attr_fan2_led.dev_attr.attr,
+    &sensor_dev_attr_fan3_led.dev_attr.attr,
     NULL,
 };
 
@@ -675,7 +717,7 @@ static int cpld_drv_remove(struct platform_device *pdev)
     struct sfp_device_data *rem_data;
     int i;
 
-    for ( i = 0; i < 4; i++) {
+    for ( i = 0; i < 4; i++ ) {
         rem_data = dev_get_drvdata(cpld_data->sfp_devices[i]);
         put_device(cpld_data->sfp_devices[i]);
         device_unregister(cpld_data->sfp_devices[i]);
@@ -717,5 +759,5 @@ module_exit(cpld_exit);
 
 MODULE_AUTHOR("Celestica Inc.");
 MODULE_DESCRIPTION("Celestica E1031 SMC driver");
-MODULE_VERSION("0.0.2");
+MODULE_VERSION("0.0.3");
 MODULE_LICENSE("GPL");
