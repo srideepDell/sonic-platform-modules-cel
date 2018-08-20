@@ -169,7 +169,6 @@ static ssize_t scratch_store(struct device *dev, struct device_attribute *devatt
     mutex_unlock(&cpld_data->cpld_lock);
     return count;
 }
-static DEVICE_ATTR_RW(scratch);
 
 
 static ssize_t version_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -180,7 +179,6 @@ static ssize_t version_show(struct device *dev, struct device_attribute *attr, c
     mutex_unlock(&cpld_data->cpld_lock);
     return len;
 }
-static DEVICE_ATTR_RO(version);
 
 static ssize_t getreg_store(struct device *dev, struct device_attribute *devattr,
                             const char *buf, size_t count)
@@ -204,7 +202,6 @@ static ssize_t getreg_show(struct device *dev, struct device_attribute *attr, ch
     mutex_unlock(&cpld_data->cpld_lock);
     return len;
 }
-static DEVICE_ATTR_RW(getreg);
 
 static ssize_t setreg_store(struct device *dev, struct device_attribute *devattr,
                             const char *buf, size_t count)
@@ -245,7 +242,6 @@ static ssize_t setreg_store(struct device *dev, struct device_attribute *devattr
     mutex_unlock(&cpld_data->cpld_lock);
     return count;
 }
-static DEVICE_ATTR_WO(setreg);
 
 /**
  * Show status led
@@ -297,7 +293,6 @@ static ssize_t status_led_store(struct device *dev, struct device_attribute *dev
     mutex_unlock(&cpld_data->cpld_lock);
     return count;
 }
-static DEVICE_ATTR_RW(status_led);
 
 
 /**
@@ -350,7 +345,6 @@ static ssize_t master_led_store(struct device *dev, struct device_attribute *dev
     mutex_unlock(&cpld_data->cpld_lock);
     return count;
 }
-static DEVICE_ATTR_RW(master_led);
 
 static ssize_t psuL_prs_show(struct device *dev, struct device_attribute *devattr,
                              char *buf)
@@ -361,7 +355,6 @@ static ssize_t psuL_prs_show(struct device *dev, struct device_attribute *devatt
     mutex_unlock(&cpld_data->cpld_lock);
     return sprintf(buf, "%d\n", ~(data >> PSUL_PRS) & 1U);
 }
-static DEVICE_ATTR_RO(psuL_prs);
 
 static ssize_t psuR_prs_show(struct device *dev, struct device_attribute *devattr,
                              char *buf)
@@ -384,7 +377,6 @@ static ssize_t psuL_status_show(struct device *dev, struct device_attribute *dev
     data = ( data >> PSUL_PWOK ) & 0x3;
     return sprintf(buf, "%d\n", data == 0x3 );
 }
-static DEVICE_ATTR_RO(psuL_status);
 
 static ssize_t psuR_status_show(struct device *dev, struct device_attribute *devattr,
                                 char *buf)
@@ -396,11 +388,10 @@ static ssize_t psuR_status_show(struct device *dev, struct device_attribute *dev
     data = ( data >> PSUR_PWOK ) & 0x3;
     return sprintf(buf, "%d\n", data == 0x3 );
 }
-static DEVICE_ATTR_RO(psuR_status);
 
 
 static ssize_t fan_dir_show(struct device *dev, struct device_attribute *devattr,
-                                char *buf)
+                            char *buf)
 {
     struct sensor_device_attribute *sa = to_sensor_dev_attr(devattr);
     int index = sa->index;
@@ -411,36 +402,8 @@ static ssize_t fan_dir_show(struct device *dev, struct device_attribute *devattr
     data = inb(DEV_STAT);
     mutex_unlock(&cpld_data->cpld_lock);
     data = ( data >> index ) & 1U;
-    return sprintf(buf, "%s\n", data ? "B2F":"F2B" );
+    return sprintf(buf, "%s\n", data ? "B2F" : "F2B" );
 }
-static SENSOR_DEVICE_ATTR(fan1_dir, S_IRUGO, fan_dir_show, NULL, FAN_1);
-static SENSOR_DEVICE_ATTR(fan2_dir, S_IRUGO, fan_dir_show, NULL, FAN_2);
-static SENSOR_DEVICE_ATTR(fan3_dir, S_IRUGO, fan_dir_show, NULL, FAN_3);
-
-
-static struct attribute *cpld_attrs[] = {
-    &dev_attr_version.attr,
-    &dev_attr_scratch.attr,
-    &dev_attr_getreg.attr,
-    &dev_attr_setreg.attr,
-    // LEDs
-    &dev_attr_status_led.attr,
-    &dev_attr_master_led.attr,
-    // PSUs
-    &dev_attr_psuL_prs.attr,
-    &dev_attr_psuR_prs.attr,
-    &dev_attr_psuL_status.attr,
-    &dev_attr_psuR_status.attr,
-    // FANs
-    &sensor_dev_attr_fan1_dir.dev_attr.attr,
-    &sensor_dev_attr_fan2_dir.dev_attr.attr,
-    &sensor_dev_attr_fan3_dir.dev_attr.attr,
-    NULL,
-};
-
-static struct attribute_group cpld_attrs_grp = {
-    .attrs = cpld_attrs,
-};
 
 static ssize_t sfp_txfault_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -453,7 +416,6 @@ static ssize_t sfp_txfault_show(struct device *dev, struct device_attribute *att
     mutex_unlock(&cpld_data->cpld_lock);
     return sprintf(buf, "%d\n", (data >> port_bit ) & 1U);
 }
-static DEVICE_ATTR_RO(sfp_txfault);
 
 static ssize_t sfp_modabs_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -466,7 +428,6 @@ static ssize_t sfp_modabs_show(struct device *dev, struct device_attribute *attr
     mutex_unlock(&cpld_data->cpld_lock);
     return sprintf(buf, "%d\n", (data >> port_bit ) & 1U);
 }
-static DEVICE_ATTR_RO(sfp_modabs);
 
 static ssize_t sfp_rxlos_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -479,7 +440,6 @@ static ssize_t sfp_rxlos_show(struct device *dev, struct device_attribute *attr,
     mutex_unlock(&cpld_data->cpld_lock);
     return sprintf(buf, "%d\n", (data >> port_bit ) & 1U);
 }
-static DEVICE_ATTR_RO(sfp_rxlos);
 
 static ssize_t sfp_txdis_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -515,7 +475,6 @@ static ssize_t sfp_txdis_store(struct device *dev, struct device_attribute *attr
     mutex_unlock(&cpld_data->cpld_lock);
     return status;
 }
-static DEVICE_ATTR_RW(sfp_txdis);
 
 static ssize_t sfp_rs_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -556,7 +515,49 @@ static ssize_t sfp_rs_store(struct device *dev, struct device_attribute *attr, c
     mutex_unlock(&cpld_data->cpld_lock);
     return status;
 }
+
+
+static DEVICE_ATTR_RO(version);
+static DEVICE_ATTR_RW(scratch);
+static DEVICE_ATTR_RW(getreg);
+static DEVICE_ATTR_WO(setreg);
+static DEVICE_ATTR_RW(status_led);
+static DEVICE_ATTR_RW(master_led);
+static DEVICE_ATTR_RO(psuL_prs);
+static DEVICE_ATTR_RO(psuL_status);
+static DEVICE_ATTR_RO(psuR_status);
+static DEVICE_ATTR_RO(sfp_txfault);
+static DEVICE_ATTR_RO(sfp_modabs);
+static DEVICE_ATTR_RO(sfp_rxlos);
+static DEVICE_ATTR_RW(sfp_txdis);
 static DEVICE_ATTR_RW(sfp_rs);
+static SENSOR_DEVICE_ATTR(fan1_dir, S_IRUGO, fan_dir_show, NULL, FAN_1);
+static SENSOR_DEVICE_ATTR(fan2_dir, S_IRUGO, fan_dir_show, NULL, FAN_2);
+static SENSOR_DEVICE_ATTR(fan3_dir, S_IRUGO, fan_dir_show, NULL, FAN_3);
+
+static struct attribute *cpld_attrs[] = {
+    &dev_attr_version.attr,
+    &dev_attr_scratch.attr,
+    &dev_attr_getreg.attr,
+    &dev_attr_setreg.attr,
+    // LEDs
+    &dev_attr_status_led.attr,
+    &dev_attr_master_led.attr,
+    // PSUs
+    &dev_attr_psuL_prs.attr,
+    &dev_attr_psuR_prs.attr,
+    &dev_attr_psuL_status.attr,
+    &dev_attr_psuR_status.attr,
+    // FANs
+    &sensor_dev_attr_fan1_dir.dev_attr.attr,
+    &sensor_dev_attr_fan2_dir.dev_attr.attr,
+    &sensor_dev_attr_fan3_dir.dev_attr.attr,
+    NULL,
+};
+
+static struct attribute_group cpld_group = {
+    .attrs = cpld_attrs,
+};
 
 static struct attribute *sfp_attrs[] = {
     // SFP
@@ -568,14 +569,7 @@ static struct attribute *sfp_attrs[] = {
     NULL,
 };
 
-static struct attribute_group sfp_attr_grp = {
-    .attrs = sfp_attrs,
-};
-
-static const struct attribute_group *sfp_attr_grps[] = {
-    &sfp_attr_grp,
-    NULL
-};
+ATTRIBUTE_GROUPS(sfp);
 
 static struct resource cpld_resources[] = {
     {
@@ -596,7 +590,7 @@ static struct device * sfp_init(int portid) {
     }
     /* Front panel port ID start from 1 */
     new_data->portid = portid + 1;
-    new_device = device_create_with_groups(celplatform, cpld_data->fpp_node, MKDEV(0, 0), new_data, sfp_attr_grps, "SFP%d", new_data->portid);
+    new_device = device_create_with_groups(celplatform, cpld_data->fpp_node, MKDEV(0, 0), new_data, sfp_groups, "SFP%d", new_data->portid);
     if (IS_ERR(new_device)) {
         printk(KERN_ALERT "Cannot create sff device @port%d", portid);
         kfree(new_data);
@@ -640,7 +634,7 @@ static int cpld_drv_probe(struct platform_device *pdev)
         return -ENODEV;
     }
 
-    err = sysfs_create_group(&pdev->dev.kobj, &cpld_attrs_grp);
+    err = sysfs_create_group(&pdev->dev.kobj, &cpld_group);
     if (err) {
         printk(KERN_ERR "Cannot create sysfs for SMC.\n");
         return err;
@@ -649,14 +643,14 @@ static int cpld_drv_probe(struct platform_device *pdev)
     celplatform = class_create(THIS_MODULE, "celplatform");
     if (IS_ERR(celplatform)) {
         printk(KERN_ERR "Failed to register device class\n");
-        sysfs_remove_group(&pdev->dev.kobj, &cpld_attrs_grp);
+        sysfs_remove_group(&pdev->dev.kobj, &cpld_group);
         return PTR_ERR(celplatform);
     }
 
     cpld_data->fpp_node = device_create(celplatform, NULL, MKDEV(0, 0), NULL, "optical_ports");
     if (IS_ERR(cpld_data->fpp_node)) {
         class_destroy(celplatform);
-        sysfs_remove_group(&pdev->dev.kobj, &cpld_attrs_grp);
+        sysfs_remove_group(&pdev->dev.kobj, &cpld_group);
         return PTR_ERR(cpld_data->fpp_node);
     }
 
@@ -665,7 +659,7 @@ static int cpld_drv_probe(struct platform_device *pdev)
         put_device(cpld_data->fpp_node);
         device_unregister(cpld_data->fpp_node);
         class_destroy(celplatform);
-        sysfs_remove_group(&pdev->dev.kobj, &cpld_attrs_grp);
+        sysfs_remove_group(&pdev->dev.kobj, &cpld_group);
         return err;
     }
 
@@ -689,7 +683,7 @@ static int cpld_drv_remove(struct platform_device *pdev)
     }
     put_device(cpld_data->fpp_node);
     device_unregister(cpld_data->fpp_node);
-    sysfs_remove_group(&pdev->dev.kobj, &cpld_attrs_grp);
+    sysfs_remove_group(&pdev->dev.kobj, &cpld_group);
     class_destroy(celplatform);
     return 0;
 }
@@ -723,5 +717,5 @@ module_exit(cpld_exit);
 
 MODULE_AUTHOR("Celestica Inc.");
 MODULE_DESCRIPTION("Celestica E1031 SMC driver");
-MODULE_VERSION("0.0.1");
+MODULE_VERSION("0.0.2");
 MODULE_LICENSE("GPL");
