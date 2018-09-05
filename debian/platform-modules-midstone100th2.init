@@ -1,0 +1,49 @@
+#!/bin/bash
+
+### BEGIN INIT INFO
+# Provides:          setup-board
+# Required-Start:    $portmap
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start:     S
+# Default-Stop:      0 6
+# Short-Description: Setup Midstone-100TH2 board.
+### END INIT INFO
+
+case "$1" in
+start)
+        echo -n "Setting up board... "
+
+        depmod -a
+	modprobe i2c-core
+	modprobe i2c-dev
+	modprobe i2c-mux
+	modprobe i2c-smbus
+	modprobe i2c-isch
+	modprobe i2c-ismt
+	modprobe i2c-i801
+	modprobe sff_8436_eeprom
+	modprobe midstone_driver
+	sleep 2
+	echo 24lc64t 0x56 > /sys/bus/i2c/devices/i2c-0/new_device
+	sleep 1
+
+        echo "done."
+        ;;
+
+stop)
+        echo "done."
+        ;;
+
+force-reload|restart)
+        echo "Not supported"
+        ;;
+
+*)
+        echo "Usage: /etc/init.d/platform-modules-midstone100th2.init {start|stop}"
+        exit 1
+        ;;
+esac
+
+exit 0

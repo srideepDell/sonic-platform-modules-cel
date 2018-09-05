@@ -1,0 +1,5 @@
+midstone100th2/scripts/midstone100th2_check_qsfp.sh usr/local/bin
+midstone100th2/tools/afulnx_64 usr/bin
+midstone100th2/tools/ispvm usr/bin
+midstone100th2/tools/Yafuflash usr/bin
+midstone100th2/tools/fpga_proc usr/bin
