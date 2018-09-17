@@ -1,0 +1,2 @@
+depmod -a
+rm /etc/udev/rules.d/70-persistent-net.rules 2> /dev/null

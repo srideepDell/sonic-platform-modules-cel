@@ -1,1 +1,2 @@
 fishbone48/cfg/fishbone48-modules.conf etc/modules-load.d
+tools/platformutil.py home/admin
