@@ -1,2 +1,5 @@
+apt-get -y -qq remove ipmitool
 depmod -a
 rm /etc/udev/rules.d/70-persistent-net.rules 2> /dev/null
+update-rc.d platform-modules-fishbone48 defaults
+service platform-modules-fishbone48 start
