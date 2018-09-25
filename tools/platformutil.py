@@ -83,7 +83,7 @@ PLATFORM_ROOT_PATH_DOCKER = '/usr/share/sonic/platform'
 SONIC_CFGGEN_PATH = '/usr/local/bin/sonic-cfggen'
 MINIGRAPH_PATH = '/etc/sonic/minigraph.xml'
 HWSKU_KEY = "DEVICE_METADATA['localhost']['hwsku']"
-PLATFORM_KEY = 'platform'
+PLATFORM_KEY = "DEVICE_METADATA['localhost']['platform']"
 
 # Global platform-specific psuutil class instance
 platform_psuutil = None
@@ -128,13 +128,15 @@ def log_error(msg, also_print_to_console=False):
 # Returns platform and HW SKU
 def get_platform_and_hwsku():
     try:
-        proc = subprocess.Popen([SONIC_CFGGEN_PATH, '-v', PLATFORM_KEY],
-                                stdout=subprocess.PIPE,
-                                shell=False,
-                                stderr=subprocess.STDOUT)
-        stdout = proc.communicate()[0]
-        proc.wait()
-        platform = stdout.rstrip('\n')
+        # proc = subprocess.Popen([SONIC_CFGGEN_PATH, '-v', PLATFORM_KEY],
+        #                         stdout=subprocess.PIPE,
+        #                         shell=False,
+        #                         stderr=subprocess.STDOUT)
+        # stdout = proc.communicate()[0]
+        # proc.wait()
+        # platform = stdout.rstrip('\n')
+
+        platform = "x86_64-alibaba_as13-48f8h-cl-r0"
 
         proc = subprocess.Popen([SONIC_CFGGEN_PATH, '-m', MINIGRAPH_PATH, '-v', HWSKU_KEY],
                                 stdout=subprocess.PIPE,
@@ -282,7 +284,7 @@ fan.add_command(num)
 @click.pass_context
 def status(ctx):
     """Display PSU/FAN/SENSOR status"""
-    if ctx == "psu":
+    if ctx.obj == "psu":
         supported_psu = range(1, platform_psuutil.get_num_psus() + 1)
         header = ['PSU', 'Presence', 'Status', 'PN', 'SN']
         status_table = []
@@ -308,7 +310,7 @@ def status(ctx):
         if status_table:
             click.echo(tabulate(status_table, header, tablefmt="simple"))
 
-    if ctx == "fan":
+    if ctx.obj == "fan":
         supported_fan = range(1,platform_fanutil.get_num_fans()+1)
         header = ['FAN','Status','Speed','Low_thd','High_thd','PN','SN']
         status_table = []
@@ -335,7 +337,7 @@ def status(ctx):
         if status_table:
             click.echo(tabulate(status_table, header, tablefmt="simple"))
 
-    if ctx == "sensor":
+    if ctx.obj == "sensor":
         supported_sensors = range(1,platform_sensorutil.get_num_sensors()+1)
         header = ['Sensor','InputName', 'Value', 'Low_thd','High_thd']
         status_table = []
