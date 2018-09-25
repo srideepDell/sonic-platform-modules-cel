@@ -360,7 +360,7 @@ def status(ctx):
                 input_type = platform_sensorutil.get_sensor_input_type(sensor, input)
                 if input_type == "temperature":
                     suffix = ' C'
-                elif input_type == "valtage":
+                elif input_type == "voltage":
                     suffix = ' V'
                 value = platform_sensorutil.get_sensor_input_value(sensor, input)
                 low_thd = platform_sensorutil.get_sensor_input_low_threshold(sensor, input)
