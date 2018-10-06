@@ -2,4 +2,4 @@ fishbone48/cfg/fishbone48-modules.conf etc/modules-load.d
 tools/platformutil.py home/admin
 tools/sync_bmc/sync_bmc.service etc/systemd/system
 tools/sync_bmc/sync_bmc.timer etc/systemd/system
-tools/sync_bmc/sync_bmc/sync_bmc.py /usr/local/etc/
+tools/sync_bmc/sync_bmc.py /usr/local/etc/
