@@ -25,7 +25,7 @@
  */
 
 #ifndef TEST_MODE
-#define MOD_VERSION "0.0.1"
+#define MOD_VERSION "0.0.2"
 #else
 #define MOD_VERSION "TEST"
 #endif
@@ -340,9 +340,9 @@ struct fpga_device{
 };
 
 static struct fpga_device fpga_dev = {
-    .data_base_addr = NULL,
-    .data_mmio_start = NULL,
-    .data_mmio_len = NULL,
+    .data_base_addr = 0,
+    .data_mmio_start = 0,
+    .data_mmio_len = 0,
 };
 
 struct fishbone32_fpga_data {
@@ -350,7 +350,7 @@ struct fishbone32_fpga_data {
     struct i2c_client *sff_i2c_clients[SFF_PORT_TOTAL];
     struct i2c_adapter *i2c_adapter[VIRTUAL_I2C_PORT_LENGTH];
     struct mutex fpga_lock;         // For FPGA internal lock
-    unsigned long fpga_read_addr;
+    void __iomem * fpga_read_addr;
     uint8_t cpld1_read_addr;
     uint8_t cpld2_read_addr;
 };
@@ -509,7 +509,6 @@ static ssize_t dump_read(struct file *filp, struct kobject *kobj,
 static ssize_t ready_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
     u32 data;
-    struct sff_device_data *dev_data = dev_get_drvdata(dev);
     unsigned int REGISTER = FPGA_PORT_XCVR_READY;
 
     mutex_lock(&fpga_data->fpga_lock);
@@ -605,7 +604,7 @@ static ssize_t cpld1_setreg_store(struct device *dev, struct device_attribute *a
 
     tok = strsep((char**)&pclone, " ");
     if(tok == NULL){
-        return sprintf(buf,"ERROR line %d",__LINE__);
+        return -EINVAL;
     }
     addr = (uint8_t)strtoul(tok,&last,16);
     if(addr == 0 && tok == last){
@@ -613,7 +612,7 @@ static ssize_t cpld1_setreg_store(struct device *dev, struct device_attribute *a
     }
     tok = strsep((char**)&pclone, " ");
     if(tok == NULL){
-        return sprintf(buf,"ERROR line %d",__LINE__);
+        return -EINVAL;
     }
     value = (uint8_t)strtoul(tok,&last,16);
     if(value == 0 && tok == last){
@@ -622,7 +621,7 @@ static ssize_t cpld1_setreg_store(struct device *dev, struct device_attribute *a
 
     err = fpga_i2c_access(fpga_data->i2c_adapter[VIRTUAL_I2C_CPLD_INDEX],CPLD1_SLAVE_ADDR,0x00,I2C_SMBUS_WRITE,addr,I2C_SMBUS_BYTE_DATA,(union i2c_smbus_data*)&value);
     if(err < 0)
-        return sprintf(buf,"ERROR line %d",__LINE__);
+        return err;
 
     return size;
 }
@@ -1130,275 +1129,284 @@ static int i2c_wait_ack(struct i2c_adapter *a,unsigned long timeout,int writing)
 }
 
 static int smbus_access(struct i2c_adapter *adapter, u16 addr,
-              unsigned short flags, char rw, u8 cmd,
-              int size, union i2c_smbus_data *data)
+                        unsigned short flags, char rw, u8 cmd,
+                        int size, union i2c_smbus_data *data)
 {
-        int error = 0;
-        struct i2c_dev_data *dev_data;
-        /* Write the command register */
-        dev_data = i2c_get_adapdata(adapter);
+    int error = 0;
+    int cnt = 0;
+    int bid = 0;
+    struct i2c_dev_data *dev_data;
+    void __iomem *pci_bar;
+    unsigned int  portid, master_bus;
 
-        unsigned int  portid = dev_data->portid;
-        void __iomem *pci_bar = fpga_dev.data_base_addr;
+    unsigned int REG_FDR0;
+    unsigned int REG_CR0;
+    unsigned int REG_SR0;
+    unsigned int REG_DR0;
+    unsigned int REG_ID0;
+
+    REG_FDR0 = 0;
+    REG_CR0  = 0;
+    REG_SR0  = 0;
+    REG_DR0  = 0;
+    REG_ID0  = 0;
+
+    /* Write the command register */
+    dev_data = i2c_get_adapdata(adapter);
+    portid = dev_data->portid;
+    pci_bar = fpga_dev.data_base_addr;
 
 #ifdef DEBUG_KERN
-        printk(KERN_INFO "portid %2d|@ 0x%2.2X|f 0x%4.4X|(%d)%-5s| (%d)%-15s|CMD %2.2X "
-            ,portid,addr,flags,rw,rw == 1 ? "READ ":"WRITE"
-            ,size,                  size == 0 ? "QUICK" :
-                                    size == 1 ? "BYTE" :
-                                    size == 2 ? "BYTE_DATA" :
-                                    size == 3 ? "WORD_DATA" :
-                                    size == 4 ? "PROC_CALL" :
-                                    size == 5 ? "BLOCK_DATA" :
-                                    size == 8 ? "I2C_BLOCK_DATA" :  "ERROR"
-            ,cmd);
+    printk(KERN_INFO "portid %2d|@ 0x%2.2X|f 0x%4.4X|(%d)%-5s| (%d)%-15s|CMD %2.2X "
+           , portid, addr, flags, rw, rw == 1 ? "READ " : "WRITE"
+           , size,                  size == 0 ? "QUICK" :
+           size == 1 ? "BYTE" :
+           size == 2 ? "BYTE_DATA" :
+           size == 3 ? "WORD_DATA" :
+           size == 4 ? "PROC_CALL" :
+           size == 5 ? "BLOCK_DATA" :
+           size == 8 ? "I2C_BLOCK_DATA" :  "ERROR"
+           , cmd);
 #endif
-        /* Map the size to what the chip understands */
-        switch (size) {
-            case I2C_SMBUS_QUICK:
-            case I2C_SMBUS_BYTE:
-            case I2C_SMBUS_BYTE_DATA:
-            case I2C_SMBUS_WORD_DATA:
-            case I2C_SMBUS_BLOCK_DATA:
-            case I2C_SMBUS_I2C_BLOCK_DATA:
-                break;
-            default:
-                printk(KERN_INFO "Unsupported transaction %d\n", size);
-                error = -EOPNOTSUPP;
-                goto Done;
-        }
+    /* Map the size to what the chip understands */
+    switch (size) {
+    case I2C_SMBUS_QUICK:
+    case I2C_SMBUS_BYTE:
+    case I2C_SMBUS_BYTE_DATA:
+    case I2C_SMBUS_WORD_DATA:
+    case I2C_SMBUS_BLOCK_DATA:
+    case I2C_SMBUS_I2C_BLOCK_DATA:
+        break;
+    default:
+        printk(KERN_INFO "Unsupported transaction %d\n", size);
+        error = -EOPNOTSUPP;
+        goto Done;
+    }
 
-        unsigned int REG_FDR0;
-        unsigned int REG_CR0;
-        unsigned int REG_SR0;
-        unsigned int REG_DR0;
-        unsigned int REG_ID0;
+    master_bus = dev_data->pca9548.master_bus;
 
-        unsigned int master_bus = dev_data->pca9548.master_bus;
+    if (master_bus < I2C_MASTER_CH_1 || master_bus > I2C_MASTER_CH_TOTAL) {
+        error = -ENXIO;
+        goto Done;
+    }
 
-        if(master_bus < I2C_MASTER_CH_1 || master_bus > I2C_MASTER_CH_TOTAL){
-            error = -ENXIO;
-            goto Done;
-        }
+    REG_FDR0  = I2C_MASTER_FREQ_1    + (master_bus - 1) * 0x0100;
+    REG_CR0   = I2C_MASTER_CTRL_1    + (master_bus - 1) * 0x0100;
+    REG_SR0   = I2C_MASTER_STATUS_1  + (master_bus - 1) * 0x0100;
+    REG_DR0   = I2C_MASTER_DATA_1    + (master_bus - 1) * 0x0100;
+    REG_ID0   = I2C_MASTER_PORT_ID_1 + (master_bus - 1) * 0x0100;
 
-        REG_FDR0  = I2C_MASTER_FREQ_1    + (master_bus-1)*0x0100;
-        REG_CR0   = I2C_MASTER_CTRL_1    + (master_bus-1)*0x0100;
-        REG_SR0   = I2C_MASTER_STATUS_1  + (master_bus-1)*0x0100;
-        REG_DR0   = I2C_MASTER_DATA_1    + (master_bus-1)*0x0100;
-        REG_ID0   = I2C_MASTER_PORT_ID_1 + (master_bus-1)*0x0100;
+    iowrite8(portid, pci_bar + REG_ID0);
 
-        iowrite8(portid,pci_bar+REG_ID0);
+    cnt = 0;
 
-        int cnt=0;
+    ////[S][ADDR/R]
+    // Clear status register
+    iowrite8(0, pci_bar + REG_SR0);
+    iowrite8(1 << I2C_CR_BIT_MIEN | 1 << I2C_CR_BIT_MTX | 1 << I2C_CR_BIT_MSTA , pci_bar + REG_CR0);
+    SET_REG_BIT_H(pci_bar + REG_CR0, I2C_CR_BIT_MEN);
 
-        ////[S][ADDR/R]
-        // Clear status register
-        iowrite8(0,pci_bar+REG_SR0);
-        iowrite8(1 << I2C_CR_BIT_MIEN | 1 << I2C_CR_BIT_MTX | 1 << I2C_CR_BIT_MSTA ,pci_bar+REG_CR0);
-        SET_REG_BIT_H(pci_bar+REG_CR0,I2C_CR_BIT_MEN);
-
-        if(rw == I2C_SMBUS_READ &&
-                (size == I2C_SMBUS_QUICK || size == I2C_SMBUS_BYTE)){
-            // sent device address with Read mode
-            iowrite8(addr << 1 | 0x01,pci_bar+REG_DR0);
-        }else{
-            // sent device address with Write mode
-           iowrite8(addr << 1 | 0x00,pci_bar+REG_DR0);
-        }
+    if (rw == I2C_SMBUS_READ &&
+            (size == I2C_SMBUS_QUICK || size == I2C_SMBUS_BYTE)) {
+        // sent device address with Read mode
+        iowrite8(addr << 1 | 0x01, pci_bar + REG_DR0);
+    } else {
+        // sent device address with Write mode
+        iowrite8(addr << 1 | 0x00, pci_bar + REG_DR0);
+    }
 
 
 
-        info( "MS Start");
+    info( "MS Start");
 
-        //// Wait {A}
-        error = i2c_wait_ack(adapter,12,1);
-        if(error<0){
-            info( "get error %d",error);
-            goto Done;
-        }
+    //// Wait {A}
+    error = i2c_wait_ack(adapter, 12, 1);
+    if (error < 0) {
+        info( "get error %d", error);
+        goto Done;
+    }
 
-        //// [CMD]{A}
-        if(size == I2C_SMBUS_BYTE_DATA ||
+    //// [CMD]{A}
+    if (size == I2C_SMBUS_BYTE_DATA ||
             size == I2C_SMBUS_WORD_DATA ||
             size == I2C_SMBUS_BLOCK_DATA ||
             size == I2C_SMBUS_I2C_BLOCK_DATA ||
-            (size == I2C_SMBUS_BYTE && rw == I2C_SMBUS_WRITE)){
+            (size == I2C_SMBUS_BYTE && rw == I2C_SMBUS_WRITE)) {
 
-            // sent command code to data register
-            iowrite8(cmd,pci_bar+REG_DR0);
-            info( "MS Send CMD 0x%2.2X",cmd);
+        // sent command code to data register
+        iowrite8(cmd, pci_bar + REG_DR0);
+        info( "MS Send CMD 0x%2.2X", cmd);
 
-            // Wait {A}
-            error = i2c_wait_ack(adapter,12,1);
-            if(error<0){
-                info( "get error %d",error);
-                goto Done;
-            }
+        // Wait {A}
+        error = i2c_wait_ack(adapter, 12, 1);
+        if (error < 0) {
+            info( "get error %d", error);
+            goto Done;
         }
+    }
 
-        switch(size){
-            case I2C_SMBUS_BYTE_DATA:
-                    cnt = 1;  break;
-            case I2C_SMBUS_WORD_DATA:
-                    cnt = 2;  break;
-            case I2C_SMBUS_BLOCK_DATA:
-            case I2C_SMBUS_I2C_BLOCK_DATA:
-            /* In block data modes keep number of byte in block[0] */
-                    cnt = data->block[0];
-                              break;
-            default:
-                    cnt = 0;  break;
+    switch (size) {
+    case I2C_SMBUS_BYTE_DATA:
+        cnt = 1;  break;
+    case I2C_SMBUS_WORD_DATA:
+        cnt = 2;  break;
+    case I2C_SMBUS_BLOCK_DATA:
+    case I2C_SMBUS_I2C_BLOCK_DATA:
+        /* In block data modes keep number of byte in block[0] */
+        cnt = data->block[0];
+        break;
+    default:
+        cnt = 0;  break;
+    }
+
+    // [CNT]  used only block data write
+    if (size == I2C_SMBUS_BLOCK_DATA && rw == I2C_SMBUS_WRITE) {
+
+        iowrite8(cnt, pci_bar + REG_DR0);
+        info( "MS Send CNT 0x%2.2X", cnt);
+
+        // Wait {A}
+        error = i2c_wait_ack(adapter, 12, 1);
+        if (error < 0) {
+            info( "get error %d", error);
+            goto Done;
         }
+    }
 
-        // [CNT]  used only block data write
-        if(size == I2C_SMBUS_BLOCK_DATA && rw == I2C_SMBUS_WRITE){
-
-            iowrite8(cnt,pci_bar+REG_DR0);
-            info( "MS Send CNT 0x%2.2X",cnt);
-
-            // Wait {A}
-            error = i2c_wait_ack(adapter,12,1);
-            if(error<0){
-                info( "get error %d",error);
-                goto Done;
-            }
-        }
-
-        // [DATA]{A}
-        if( rw == I2C_SMBUS_WRITE && (
-                    size == I2C_SMBUS_BYTE ||
-                    size == I2C_SMBUS_BYTE_DATA ||
-                    size == I2C_SMBUS_WORD_DATA ||
-                    size == I2C_SMBUS_BLOCK_DATA ||
-                    size == I2C_SMBUS_I2C_BLOCK_DATA
-            )){
-            int bid=0;
-            info( "MS prepare to sent [%d bytes]",cnt);
-            if(size == I2C_SMBUS_BLOCK_DATA || size == I2C_SMBUS_I2C_BLOCK_DATA){
-                bid=1;      // block[0] is cnt;
-                cnt+=1;     // offset from block[0]
-            }
-            for(;bid<cnt;bid++){
-
-                iowrite8(data->block[bid],pci_bar+REG_DR0);
-                info( "   Data > %2.2X",data->block[bid]);
-                // Wait {A}
-                error = i2c_wait_ack(adapter,12,1);
-                if(error<0){
-                    goto Done;
-                }
-            }
-
-        }
-
-        // REPEATE START
-        if( rw == I2C_SMBUS_READ && (
-                size == I2C_SMBUS_BYTE_DATA ||
-                size == I2C_SMBUS_WORD_DATA ||
-                size == I2C_SMBUS_BLOCK_DATA ||
-                size == I2C_SMBUS_I2C_BLOCK_DATA
-            )){
-            info( "MS Repeated Start");
-
-            SET_REG_BIT_L(pci_bar+REG_CR0,I2C_CR_BIT_MEN);
-            iowrite8(1 << I2C_CR_BIT_MIEN |
-                1 << I2C_CR_BIT_MTX |
-                1 << I2C_CR_BIT_MSTA |
-                1 << I2C_CR_BIT_RSTA ,pci_bar+REG_CR0);
-            SET_REG_BIT_H(pci_bar+REG_CR0,I2C_CR_BIT_MEN);
-
-            // sent Address with Read mode
-            iowrite8( addr<<1 | 0x1 ,pci_bar+REG_DR0);
-
-            // Wait {A}
-            error = i2c_wait_ack(adapter,12,1);
-            if(error<0){
-                goto Done;
-            }
-
-        }
-
-        if( rw == I2C_SMBUS_READ && (
+    // [DATA]{A}
+    if ( rw == I2C_SMBUS_WRITE && (
                 size == I2C_SMBUS_BYTE ||
                 size == I2C_SMBUS_BYTE_DATA ||
                 size == I2C_SMBUS_WORD_DATA ||
                 size == I2C_SMBUS_BLOCK_DATA ||
                 size == I2C_SMBUS_I2C_BLOCK_DATA
-            )){
+            )) {
+        bid = 0;
+        info( "MS prepare to sent [%d bytes]", cnt);
+        if (size == I2C_SMBUS_BLOCK_DATA || size == I2C_SMBUS_I2C_BLOCK_DATA) {
+            bid = 1;    // block[0] is cnt;
+            cnt += 1;   // offset from block[0]
+        }
+        for (; bid < cnt; bid++) {
 
-            switch(size){
-                case I2C_SMBUS_BYTE:
-                case I2C_SMBUS_BYTE_DATA:
-                        cnt = 1;  break;
-                case I2C_SMBUS_WORD_DATA:
-                        cnt = 2;  break;
-                case I2C_SMBUS_BLOCK_DATA:
-                    // will be changed after recived first data
-                        cnt = 3;  break;
-                case I2C_SMBUS_I2C_BLOCK_DATA:
-                        cnt = data->block[0];  break;
-                default:
-                        cnt = 0;  break;
-            }
-
-            int bid = 0;
-            info( "MS Receive");
-
-            //set to Receive mode
-            iowrite8(1 << I2C_CR_BIT_MEN |
-                1 << I2C_CR_BIT_MIEN |
-                1 << I2C_CR_BIT_MSTA , pci_bar+REG_CR0);
-
-            for(bid=-1;bid<cnt;bid++){
-
-                // Wait for byte transfer
-                error = i2c_wait_ack(adapter,12,0);
-                if(error<0){
-                    goto Done;
-                }
-
-                if(bid == cnt-2){
-                    info( "SET NAK");
-                    SET_REG_BIT_H(pci_bar+REG_CR0,I2C_CR_BIT_TXAK);
-                }
-
-                if(bid<0){
-                    ioread8(pci_bar+REG_DR0);
-                    info( "READ Dummy Byte" );
-                }else{
-
-                    if(bid==cnt-1){
-                        info ( "SET STOP in read loop");
-                        SET_REG_BIT_L(pci_bar+REG_CR0,I2C_CR_BIT_MSTA);
-                    }
-                    if(size == I2C_SMBUS_I2C_BLOCK_DATA){
-                        // block[0] is read length
-                        data->block[bid+1] = ioread8(pci_bar+REG_DR0);
-                    }else {
-                        data->block[bid] = ioread8(pci_bar+REG_DR0);
-                    }
-                    info( "DATA IN [%d] %2.2X",bid,data->block[bid]);
-
-                    if(size == I2C_SMBUS_BLOCK_DATA && bid == 0){
-                        cnt = data->block[0] + 1;
-                    }
-                }
+            iowrite8(data->block[bid], pci_bar + REG_DR0);
+            info( "   Data > %2.2X", data->block[bid]);
+            // Wait {A}
+            error = i2c_wait_ack(adapter, 12, 1);
+            if (error < 0) {
+                goto Done;
             }
         }
 
-Stop:
-        // [P]
-        SET_REG_BIT_L(pci_bar+REG_CR0,I2C_CR_BIT_MSTA);
-        info( "MS STOP");
+    }
+
+    // REPEATE START
+    if ( rw == I2C_SMBUS_READ && (
+                size == I2C_SMBUS_BYTE_DATA ||
+                size == I2C_SMBUS_WORD_DATA ||
+                size == I2C_SMBUS_BLOCK_DATA ||
+                size == I2C_SMBUS_I2C_BLOCK_DATA
+            )) {
+        info( "MS Repeated Start");
+
+        SET_REG_BIT_L(pci_bar + REG_CR0, I2C_CR_BIT_MEN);
+        iowrite8(1 << I2C_CR_BIT_MIEN |
+                 1 << I2C_CR_BIT_MTX |
+                 1 << I2C_CR_BIT_MSTA |
+                 1 << I2C_CR_BIT_RSTA , pci_bar + REG_CR0);
+        SET_REG_BIT_H(pci_bar + REG_CR0, I2C_CR_BIT_MEN);
+
+        // sent Address with Read mode
+        iowrite8( addr << 1 | 0x1 , pci_bar + REG_DR0);
+
+        // Wait {A}
+        error = i2c_wait_ack(adapter, 12, 1);
+        if (error < 0) {
+            goto Done;
+        }
+
+    }
+
+    if ( rw == I2C_SMBUS_READ && (
+                size == I2C_SMBUS_BYTE ||
+                size == I2C_SMBUS_BYTE_DATA ||
+                size == I2C_SMBUS_WORD_DATA ||
+                size == I2C_SMBUS_BLOCK_DATA ||
+                size == I2C_SMBUS_I2C_BLOCK_DATA
+            )) {
+
+        switch (size) {
+        case I2C_SMBUS_BYTE:
+        case I2C_SMBUS_BYTE_DATA:
+            cnt = 1;  break;
+        case I2C_SMBUS_WORD_DATA:
+            cnt = 2;  break;
+        case I2C_SMBUS_BLOCK_DATA:
+            // will be changed after recived first data
+            cnt = 3;  break;
+        case I2C_SMBUS_I2C_BLOCK_DATA:
+            cnt = data->block[0];  break;
+        default:
+            cnt = 0;  break;
+        }
+
+        bid = 0;
+        info( "MS Receive");
+
+        //set to Receive mode
+        iowrite8(1 << I2C_CR_BIT_MEN |
+                 1 << I2C_CR_BIT_MIEN |
+                 1 << I2C_CR_BIT_MSTA , pci_bar + REG_CR0);
+
+        for (bid = -1; bid < cnt; bid++) {
+
+            // Wait for byte transfer
+            error = i2c_wait_ack(adapter, 12, 0);
+            if (error < 0) {
+                goto Done;
+            }
+
+            if (bid == cnt - 2) {
+                info( "SET NAK");
+                SET_REG_BIT_H(pci_bar + REG_CR0, I2C_CR_BIT_TXAK);
+            }
+
+            if (bid < 0) {
+                ioread8(pci_bar + REG_DR0);
+                info( "READ Dummy Byte" );
+            } else {
+
+                if (bid == cnt - 1) {
+                    info ( "SET STOP in read loop");
+                    SET_REG_BIT_L(pci_bar + REG_CR0, I2C_CR_BIT_MSTA);
+                }
+                if (size == I2C_SMBUS_I2C_BLOCK_DATA) {
+                    // block[0] is read length
+                    data->block[bid + 1] = ioread8(pci_bar + REG_DR0);
+                } else {
+                    data->block[bid] = ioread8(pci_bar + REG_DR0);
+                }
+                info( "DATA IN [%d] %2.2X", bid, data->block[bid]);
+
+                if (size == I2C_SMBUS_BLOCK_DATA && bid == 0) {
+                    cnt = data->block[0] + 1;
+                }
+            }
+        }
+    }
+
+    // [P]
+    SET_REG_BIT_L(pci_bar + REG_CR0, I2C_CR_BIT_MSTA);
+    info( "MS STOP");
 
 Done:
-        iowrite8(1<<I2C_CR_BIT_MEN,pci_bar+REG_CR0);
-        check(pci_bar+REG_CR0);
-        check(pci_bar+REG_SR0);
+    iowrite8(1 << I2C_CR_BIT_MEN, pci_bar + REG_CR0);
+    check(pci_bar + REG_CR0);
+    check(pci_bar + REG_SR0);
 #ifdef DEBUG_KERN
-        printk(KERN_INFO "END --- Error code  %d",error);
+    printk(KERN_INFO "END --- Error code  %d", error);
 #endif
-        return error;
+    return error;
 }
 
 /**
@@ -1415,14 +1423,17 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
 {
     int error = 0;
     struct i2c_dev_data *dev_data;
+    unsigned char master_bus, switch_addr, channel;
+    uint16_t prev_port = 0;
+
     dev_data = i2c_get_adapdata(adapter);
-    unsigned char master_bus = dev_data->pca9548.master_bus;
-    unsigned char switch_addr = dev_data->pca9548.switch_addr;
-    unsigned char channel = dev_data->pca9548.channel;
+    master_bus = dev_data->pca9548.master_bus;
+    switch_addr = dev_data->pca9548.switch_addr;
+    channel = dev_data->pca9548.channel;
 
     // Acquire the master resource.
     mutex_lock(&fpga_i2c_master_locks[master_bus-1]);
-    uint16_t prev_port = fpga_i2c_lasted_access_port[master_bus-1];
+    prev_port = fpga_i2c_lasted_access_port[master_bus-1];
 
     if(switch_addr != 0xFF){
         // Check lasted access switch address on a master
@@ -1487,6 +1498,7 @@ static struct i2c_adapter * fishbone32_i2c_init(struct platform_device *pdev, in
 
     struct i2c_adapter *new_adapter;
     struct i2c_dev_data *new_data;
+    void __iomem *i2c_freq_base_reg;
 
     new_adapter = kzalloc(sizeof(*new_adapter), GFP_KERNEL);
     if (!new_adapter){
@@ -1520,7 +1532,7 @@ static struct i2c_adapter * fishbone32_i2c_init(struct platform_device *pdev, in
     snprintf(new_adapter->name, sizeof(new_adapter->name),
         "SMBus I2C Adapter PortID: %s", new_data->pca9548.calling_name);
 
-    void __iomem *i2c_freq_base_reg = fpga_dev.data_base_addr+I2C_MASTER_FREQ_1;
+    i2c_freq_base_reg = fpga_dev.data_base_addr+I2C_MASTER_FREQ_1;
     iowrite8(0x07,i2c_freq_base_reg+(new_data->pca9548.master_bus-1)*0x100); // 0x07 400kHz
     i2c_set_adapdata(new_adapter,new_data);
     error = i2c_add_numbered_adapter(new_adapter);
@@ -1729,24 +1741,26 @@ static int fishbone32_drv_probe(struct platform_device *pdev)
     fpga_i2c_access(fpga_data->i2c_adapter[VIRTUAL_I2C_CPLD_INDEX],CPLD2_SLAVE_ADDR,0x00,
         I2C_SMBUS_READ,0x00,I2C_SMBUS_BYTE_DATA,(union i2c_smbus_data*)&cpld2_version);
 
-    printk(KERN_INFO "CPLD1 VERSION: %2.2x\n", cpld1_version);
-    printk(KERN_INFO "CPLD2 VERSION: %2.2x\n", cpld2_version);
+    printk(KERN_INFO "CPLD1 Version: %2.2x\n", cpld1_version);
+    printk(KERN_INFO "CPLD2 Version: %2.2x\n", cpld2_version);
 
     /* Init I2C buses that has PCA9548 switch device. */
     for(portid_count = 0; portid_count < VIRTUAL_I2C_PORT_LENGTH; portid_count++){
 
-       struct i2c_dev_data *dev_data;
-       dev_data = i2c_get_adapdata(fpga_data->i2c_adapter[portid_count]);
-       unsigned char master_bus = dev_data->pca9548.master_bus;
-       unsigned char switch_addr = dev_data->pca9548.switch_addr;
-       unsigned char channel = dev_data->pca9548.channel;
+        struct i2c_dev_data *dev_data;
+        unsigned char master_bus;
+        unsigned char switch_addr;
+
+        dev_data = i2c_get_adapdata(fpga_data->i2c_adapter[portid_count]);
+        master_bus = dev_data->pca9548.master_bus;
+        switch_addr = dev_data->pca9548.switch_addr;
 
        if(switch_addr != 0xFF){
 
-           if(prev_i2c_switch != ( (master_bus << 8) | switch_addr) ){
-               // Found the bus with PCA9548, trying to clear all switch in it.
-               smbus_access(fpga_data->i2c_adapter[portid_count],switch_addr,0x00,I2C_SMBUS_WRITE,0x00,I2C_SMBUS_BYTE,NULL);
-               prev_i2c_switch = ( master_bus << 8 ) | switch_addr;
+            if (prev_i2c_switch != ( (master_bus << 8) | switch_addr) ) {
+                // Found the bus with PCA9548, trying to clear all switch in it.
+                smbus_access(fpga_data->i2c_adapter[portid_count], switch_addr, 0x00, I2C_SMBUS_WRITE, 0x00, I2C_SMBUS_BYTE, NULL);
+                prev_i2c_switch = ( master_bus << 8 ) | switch_addr;
            }
        }
     }
@@ -1811,9 +1825,11 @@ static int fpga_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
     int err;
     struct device *dev = &pdev->dev;
-        if ((err = pci_enable_device(pdev))) {
+    uint32_t fpga_version;
+
+    if ((err = pci_enable_device(pdev))) {
         dev_err(dev, "pci_enable_device probe error %d for device %s\n",
-            err, pci_name(pdev));
+                err, pci_name(pdev));
         return err;
     }
 
@@ -1828,26 +1844,26 @@ static int fpga_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     fpga_dev.data_base_addr = pci_iomap(pdev, FPGA_PCI_BAR_NUM, 0);
     if (!fpga_dev.data_base_addr) {
         dev_err(dev, "cannot iomap region of size %lu\n",
-            (unsigned long)fpga_dev.data_mmio_len);
+                (unsigned long)fpga_dev.data_mmio_len);
         goto pci_release;
     }
     dev_info(dev, "data_mmio iomap base = 0x%lx \n",
-         (unsigned long)fpga_dev.data_base_addr);
+             (unsigned long)fpga_dev.data_base_addr);
     dev_info(dev, "data_mmio_start = 0x%lx data_mmio_len = %lu\n",
-         (unsigned long)fpga_dev.data_mmio_start,
-         (unsigned long)fpga_dev.data_mmio_len);
+             (unsigned long)fpga_dev.data_mmio_start,
+             (unsigned long)fpga_dev.data_mmio_len);
 
     printk(KERN_INFO "FPGA PCIe driver probe OK.\n");
-    printk(KERN_INFO "FPGA ioremap registers of size %lu\n",(unsigned long)fpga_dev.data_mmio_len);
-    printk(KERN_INFO "FPGA Virtual BAR %d at %8.8lx - %8.8lx\n",FPGA_PCI_BAR_NUM,(unsigned long)fpga_dev.data_base_addr,(unsigned long)fpga_dev.data_base_addr+ (unsigned long)fpga_dev.data_mmio_len);
+    printk(KERN_INFO "FPGA ioremap registers of size %lu\n", (unsigned long)fpga_dev.data_mmio_len);
+    printk(KERN_INFO "FPGA Virtual BAR %d at %8.8lx - %8.8lx\n", FPGA_PCI_BAR_NUM, 
+        (unsigned long)fpga_dev.data_base_addr, 
+        (unsigned long)(fpga_dev.data_base_addr + fpga_dev.data_mmio_len));
     printk(KERN_INFO "");
-    uint32_t buff = ioread32(fpga_dev.data_base_addr);
-    printk(KERN_INFO "FPGA VERSION : %8.8x\n", buff);
+    fpga_version = ioread32(fpga_dev.data_base_addr);
+    printk(KERN_INFO "FPGA Version : %8.8x\n", fpga_version);
     fpgafw_init();
     return 0;
 
-reg_release:
-    pci_iounmap(pdev, fpga_dev.data_base_addr);
 pci_release:
     pci_release_regions(pdev);
 pci_disable:

@@ -1,7 +1,7 @@
 /*
- * baseboard_cpld.c - driver for fishbone32 Base Board CPLD
+ * baseboard_cpld.c - driver for Fishbone32 Base Board CPLD
  * This driver implement sysfs for CPLD register access using LPC bus.
- * Copyright (C) 2017 Celestica Corp.
+ * Copyright (C) 2018 Celestica Corp.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,9 +35,9 @@
  */
 #define VERSION_ADDR 0xA100
 #define SCRATCH_ADDR 0xA101
+#define SYS_LED_ADDR 0xA162
 
-// For getting the sys_cpld kobj path.
-extern struct kobject *sys_cpld;
+#define CPLD_REGISTER_SIZE 0x77
 
 struct baseboard_cpld_data {
     struct mutex       cpld_lock;
@@ -75,14 +75,13 @@ static ssize_t scratch_store(struct device *dev, struct device_attribute *devatt
                 const char *buf, size_t count)
 {
     unsigned long data;
-    int err;
-    mutex_lock(&cpld_data->cpld_lock);
+    char *last;
 
-    err = kstrtoul(buf, 16, &data);
-    if (err)
-    {
+    mutex_lock(&cpld_data->cpld_lock);
+    data = (uint16_t)strtoul(buf,&last,16);
+    if(data == 0 && buf == last){
         mutex_unlock(&cpld_data->cpld_lock);
-        return err;
+        return -EINVAL;
     }
     outb(data, SCRATCH_ADDR);
     mutex_unlock(&cpld_data->cpld_lock);
@@ -108,10 +107,11 @@ static ssize_t getreg_store(struct device *dev, struct device_attribute *devattr
 {
     // CPLD register is one byte
     uint16_t addr;
-    int err;
-    addr = (uint16_t)strtoul(buf,NULL,16);
-    if(err < 0){
-        return 0;
+    char *last;
+
+    addr = (uint16_t)strtoul(buf,&last,16);
+    if(addr == 0 && buf == last){
+        return -EINVAL;
     }
     cpld_data->read_addr = addr;
     return count;
@@ -136,7 +136,7 @@ static ssize_t setreg_store(struct device *dev, struct device_attribute *devattr
     char *tok;
     char clone[count];
     char *pclone = clone;
-    int err;
+    char *last;
 
     strcpy(clone, buf);
 
@@ -144,31 +144,181 @@ static ssize_t setreg_store(struct device *dev, struct device_attribute *devattr
     tok = strsep((char**)&pclone, " ");
     if(tok == NULL){
         mutex_unlock(&cpld_data->cpld_lock);
-        return 0;
+        return -EINVAL;
     }
-    addr = (uint16_t)strtoul(tok,NULL,16);
+    addr = (uint16_t)strtoul(tok,&last,16);
+    if(addr == 0 && tok == last){
+        mutex_unlock(&cpld_data->cpld_lock);
+        return -EINVAL;
+    }
+
     tok = strsep((char**)&pclone, " ");
     if(tok == NULL){
         mutex_unlock(&cpld_data->cpld_lock);
-        return 0;
+        return -EINVAL;
     }
-    value = (uint8_t)strtoul(tok,NULL,16);
+    value = (uint8_t)strtoul(tok,&last,16);
+    if(value == 0 && tok == last){
+        mutex_unlock(&cpld_data->cpld_lock);
+        return -EINVAL;
+    }
+
     outb(value,addr);
     mutex_unlock(&cpld_data->cpld_lock);
     return count;
 }
 static DEVICE_ATTR_WO(setreg);
 
+/**
+ * Read all CPLD register in binary mode.
+ * @return number of byte read.
+ */
+static ssize_t dump_read(struct file *filp, struct kobject *kobj,
+                struct bin_attribute *attr, char *buf,
+                loff_t off, size_t count)
+{
+    unsigned long i=0;
+    ssize_t status;
+
+    mutex_lock(&cpld_data->cpld_lock);
+begin:
+    if(i < count){
+        buf[i++] = inb(VERSION_ADDR + off);
+        off++;
+        msleep(1);
+        goto begin;
+    }
+    status = count;
+exit:
+    mutex_unlock(&cpld_data->cpld_lock);
+    return status;
+}
+static BIN_ATTR_RO(dump, CPLD_REGISTER_SIZE);
+
+/**
+ * Show system led status - on/off/1k/4k
+ * @param  dev     kernel device
+ * @param  devattr kernel device attribute
+ * @param  buf     buffer for get value
+ * @return         Hex string read from scratch register.
+ */
+static ssize_t sys_led_show(struct device *dev, struct device_attribute *devattr,
+                char *buf)
+{
+    unsigned char data = 0;
+    mutex_lock(&cpld_data->cpld_lock);
+    data = inb(SYS_LED_ADDR);
+    mutex_unlock(&cpld_data->cpld_lock);
+    data = data & 0x3;
+    return sprintf(buf, "%s\n",
+            data == 0x03 ? "off" : data == 0x02 ? "4k" : data ==0x01 ? "1k": "on");
+}
+
+/**
+ * Set the status of system led - on/off/1k/4k
+ * @param  dev     kernel device
+ * @param  devattr kernel device attribute
+ * @param  buf     buffer of set value
+ * @param  count   number of bytes in buffer
+ * @return         number of bytes written, or error code < 0.
+ */
+static ssize_t sys_led_store(struct device *dev, struct device_attribute *devattr,
+                const char *buf, size_t count)
+{
+    unsigned char led_status,data;
+    if(sysfs_streq(buf, "off")){
+        led_status = 0x03;
+    }else if(sysfs_streq(buf, "4k")){
+        led_status = 0x02;
+    }else if(sysfs_streq(buf, "1k")){
+        led_status = 0x01;
+    }else if(sysfs_streq(buf, "on")){
+        led_status = 0x00;
+    }else{
+        count = -EINVAL;
+        return count;
+    }
+    mutex_lock(&cpld_data->cpld_lock);
+    data = inb(SYS_LED_ADDR);
+    data = data & ~(0x3);
+    data = data | led_status;
+    outb(data, SYS_LED_ADDR);
+    mutex_unlock(&cpld_data->cpld_lock);
+    return count;
+}
+static DEVICE_ATTR_RW(sys_led);
+
+/**
+ * Show system led color - both/green/yellow/none
+ * @param  dev     kernel device
+ * @param  devattr kernel device attribute
+ * @param  buf     buffer for get value
+ * @return         Hex string read from scratch register.
+ */
+static ssize_t sys_led_color_show(struct device *dev, struct device_attribute *devattr,
+                char *buf)
+{
+    unsigned char data = 0;
+    mutex_lock(&cpld_data->cpld_lock);
+    data = inb(SYS_LED_ADDR);
+    mutex_unlock(&cpld_data->cpld_lock);
+    data = (data >> 4) & 0x3;
+    return sprintf(buf, "%s\n",
+            data == 0x03 ? "off" : data == 0x02 ? "yellow" : data ==0x01 ? "green": "both");
+}
+
+/**
+ * Set the color of system led - both/green/yellow/none
+ * @param  dev     kernel device
+ * @param  devattr kernel device attribute
+ * @param  buf     buffer of set value
+ * @param  count   number of bytes in buffer
+ * @return         number of bytes written, or error code < 0.
+ */
+static ssize_t sys_led_color_store(struct device *dev, struct device_attribute *devattr,
+                const char *buf, size_t count)
+{
+    unsigned char led_status,data;
+    if(sysfs_streq(buf, "off")){
+        led_status = 0x03;
+    }else if(sysfs_streq(buf, "yellow")){
+        led_status = 0x02;
+    }else if(sysfs_streq(buf, "green")){
+        led_status = 0x01;
+    }else if(sysfs_streq(buf, "both")){
+        led_status = 0x00;
+    }else{
+        count = -EINVAL;
+        return count;
+    }
+    mutex_lock(&cpld_data->cpld_lock);
+    data = inb(SYS_LED_ADDR);
+    data = data & ~( 0x3 << 4);
+    data = data | (led_status << 4);
+    outb(data, SYS_LED_ADDR);
+    mutex_unlock(&cpld_data->cpld_lock);
+    return count;
+}
+static DEVICE_ATTR_RW(sys_led_color);
+
 static struct attribute *baseboard_cpld_attrs[] = {
     &dev_attr_version.attr,
     &dev_attr_scratch.attr,
     &dev_attr_getreg.attr,
     &dev_attr_setreg.attr,
+    &dev_attr_sys_led.attr,
+    &dev_attr_sys_led_color.attr,
+    NULL,
+};
+
+static struct bin_attribute *baseboard_cpld_bin_attrs[] = {
+    &bin_attr_dump,
     NULL,
 };
 
 static struct attribute_group baseboard_cpld_attrs_grp = {
     .attrs = baseboard_cpld_attrs,
+    .bin_attrs = baseboard_cpld_bin_attrs,
 };
 
 static struct resource baseboard_cpld_resources[] = {
@@ -254,6 +404,6 @@ void baseboard_cpld_exit(void)
 module_init(baseboard_cpld_init);
 module_exit(baseboard_cpld_exit);
 
-MODULE_AUTHOR("Prapatsorn W.  <pwisutti@celestica.com>");
-MODULE_DESCRIPTION("Celestica fishbone32 Baseboard CPLD Driver");
+MODULE_AUTHOR("Pradchaya Phucharoen <pphuchar@celestica.com>");
+MODULE_DESCRIPTION("Celestica Fishbone32 Baseboard CPLD Driver");
 MODULE_LICENSE("GPL");
