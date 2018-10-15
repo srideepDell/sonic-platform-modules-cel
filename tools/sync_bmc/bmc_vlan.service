@@ -1,0 +1,10 @@
+[Unit]
+Requires=dhcp_relay.service
+After=dhcp_relay.service
+Before=syslog.service
+
+[Service]
+ExecStart=/bin/sh /usr/local/etc/bmc_vlan.sh
+
+[Install]
+WantedBy=syslog.service
