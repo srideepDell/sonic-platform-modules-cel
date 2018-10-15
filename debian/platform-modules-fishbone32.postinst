@@ -1,0 +1,3 @@
+depmod -a
+update-rc.d platform-modules-fishbone32 defaults
+service platform-modules-fishbone32 start
