@@ -1,0 +1,2 @@
+haliburton/cfg/haliburton-modules.conf etc/modules-load.d
+haliburton/tools/lpc_cpld_x64_64 usr/local/etc
