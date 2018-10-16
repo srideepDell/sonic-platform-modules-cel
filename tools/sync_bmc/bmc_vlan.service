@@ -1,10 +1,12 @@
 [Unit]
-Requires=dhcp_relay.service
+Description="Service for add vlan for rsyslog"
 After=dhcp_relay.service
-Before=syslog.service
+Before=rsyslog-config.service
+Before=rsyslog.service
 
 [Service]
+Type=forking
 ExecStart=/bin/sh /usr/local/etc/bmc_vlan.sh
 
 [Install]
-WantedBy=syslog.service
+WantedBy=rsyslog.service
