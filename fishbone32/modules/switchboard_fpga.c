@@ -1149,6 +1149,8 @@ static void i2c_core_deinit(unsigned int master_bus,void __iomem *pci_bar){
     iowrite8( ioread8(pci_bar + REG_CTRL) & ~(1 << I2C_CTRL_EN| 1 << I2C_CTRL_IEN), pci_bar + REG_CTRL);
 }
 
+//FIXME: The hard code seperater below will causing bug!
+//Should pass configuration args into function.
 static int i2c_xcvr_access(u8 register_address, unsigned int portid, u8 *data, char rw){
     
     u16 dev_addr = 0;
@@ -1157,11 +1159,11 @@ static int i2c_xcvr_access(u8 register_address, unsigned int portid, u8 *data, c
     if(portid < 0 || portid > SFF_PORT_TOTAL){
         return -EINVAL;
     }
-    if (portid <= 28 ){
+    if (portid <= 16 ){
         dev_addr = CPLD1_SLAVE_ADDR;
     }else{
         dev_addr = CPLD2_SLAVE_ADDR;
-        portid = portid - 28;
+        portid = portid - 16;
     }
     // Select port
     err = fpga_i2c_access(fpga_data->i2c_adapter[SW_I2C_CPLD_INDEX], dev_addr, 0x00, I2C_SMBUS_WRITE, 
