@@ -15,20 +15,17 @@ case "$1" in
 start)
         echo -n "Setting up board... "
 
-        depmod -a
+        # Add driver to support HW
         modprobe i2c-dev
-        modprobe i2c-mux-pca954x
-        modprobe switchboard_fpga
-        for devnum in 0 1; do
-            devname=`cat /sys/bus/i2c/devices/i2c-${devnum}/name`
-            if [[ $devname == 'SMBus iSMT adapter at '* ]]; then
-                echo 24lc64t 0x56 > /sys/bus/i2c/devices/i2c-${devnum}/new_device
-                break
-            fi
-        done
-        sleep 1
         modprobe baseboard_cpld
-        decode-syseeprom --init 2> /dev/null &
+        modprobe switchboard_fpga
+        
+        # Add driver to support TLV - EEPROM
+        echo 24lc64t 0x56 > /sys/bus/i2c/devices/i2c-0/new_device
+
+        # Temporary disable reset i2c_11 instead of use fpga
+        echo 0x108 0xFF > /sys/devices/platform/AS1332h.switchboard/FPGA/setreg
+        
         echo "done."
         ;;
 
