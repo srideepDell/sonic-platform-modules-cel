@@ -14,6 +14,19 @@
 case "$1" in
 start)
         echo -n "Setting up board... "
+
+        # Add driver to support HW
+        modprobe i2c-dev
+        modprobe baseboard_cpld
+        modprobe switchboard_fpga
+        
+        # Add driver to support TLV - EEPROM
+        echo 24lc64t 0x56 > /sys/bus/i2c/devices/i2c-0/new_device
+
+        # Temporary disable reset i2c_11 instead of use fpga
+        echo 0x108 0xFF > /sys/devices/platform/AS1332h.switchboard/FPGA/setreg
+        
+        echo "done."
         ;;
 
 stop)

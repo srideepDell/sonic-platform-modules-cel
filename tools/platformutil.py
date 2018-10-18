@@ -128,17 +128,15 @@ def log_error(msg, also_print_to_console=False):
 # Returns platform and HW SKU
 def get_platform_and_hwsku():
     try:
-        # proc = subprocess.Popen([SONIC_CFGGEN_PATH, '-v', PLATFORM_KEY],
-        #                         stdout=subprocess.PIPE,
-        #                         shell=False,
-        #                         stderr=subprocess.STDOUT)
-        # stdout = proc.communicate()[0]
-        # proc.wait()
-        # platform = stdout.rstrip('\n')
+        proc = subprocess.Popen([SONIC_CFGGEN_PATH, '-H', '-v', PLATFORM_KEY],
+                                stdout=subprocess.PIPE,
+                                shell=False,
+                                stderr=subprocess.STDOUT)
+        stdout = proc.communicate()[0]
+        proc.wait()
+        platform = stdout.rstrip('\n')
 
-        platform = "x86_64-alibaba_as13-48f8h-cl-r0"
-
-        proc = subprocess.Popen([SONIC_CFGGEN_PATH, '-m', MINIGRAPH_PATH, '-v', HWSKU_KEY],
+        proc = subprocess.Popen([SONIC_CFGGEN_PATH, '-d', '-v', HWSKU_KEY],
                                 stdout=subprocess.PIPE,
                                 shell=False,
                                 stderr=subprocess.STDOUT)
