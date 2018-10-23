@@ -16,10 +16,11 @@
 # FAN 2   NOT_OK          20000 RPM       300 RPM             16000 RPM       M6510-FAN-F     1000000000014
 #
 # platformutil sensor status
-# Sensor                  InptName            Value       Low_thd     High_thd
-# coretemp-isa-0000       Physical id 0       41.0 C      0.0 C       50.0 C
-# coretemp-isa-0000       Core 0              41.0 C      0.0 C       82.0 C
-# w83795adg-i2c-16-2f     VDD_CORE            0.87 V      0.82 V      0.90 V
+#Sensor             InputName            State    Value     Low_thd    High_thd
+#-----------------  -------------------  -------  --------  ---------  ----------
+#syscpld-i2c-0-0d   CPU temp             NOT_OK   41.0 C    0 C        0.0 C
+#syscpld-i2c-0-0d   Optical temp         NOT_OK   26.0 C    0 C        0.0 C
+#syscpld-i2c-0-0d   Switch temp          NOT_OK   35.0 C    0 C        0.0 C
 #
 # should implenmet the below classes in the specified plugin
 #
@@ -31,7 +32,7 @@
 #     str get_psu_pn(int index)       //get the product name of the psu, return value example: "CSU550AP-3-300"
 #
 # class FanUtil:
-#     int get_num_fans();     //get the number of fans
+#     int get_fans_name_list();     //get the names of all the fans(FAN1-1,FAN1-2,FAN2-1,FAN2-2...)
 #     int get_fan_speed(int index);   //get the current speed of the fan, the unit is "RPM"
 #     int get_fan_low_threshold(int index); //get the low speed threshold of the fan, if the current speed < low speed threshold, the status of the fan is ok.
 #     int get_fan_high_threshold(int index); //get the hight speed threshold of the fan, if the current speed > high speed threshold, the status of the fan is not ok
@@ -44,8 +45,8 @@
 #     str get_sensor_name(int index);// get the device name of the specified sensor.for example "coretemp-isa-0000"
 #     str get_sensor_input_name(int sensor_index, int input_index); //get the input item name of the specified input item of the specified sensor index, for example "Physical id 0"
 #     str get_sensor_input_type(int sensor_index, int input_index); //get the item type of the specified input item of the specified sensor index, the return value should
-#                                                                   //among  "valtage","temperature"
-#     float get_sensor_input_value(int sensor_index, int input_index);//get the current value of the input item, the unit is "V" or "C"
+#                                                                   //among  "voltage","temperature"...
+#     float get_sensor_input_value(int sensor_index, int input_index);//get the current value of the input item, the unit is "V" or "C"...
 #     float get_sensor_input_low_threshold(int sensor_index, int input_index); //get the low threshold of the value, the status of this item is not ok if the current
 #                                                                                 //value<low_threshold
 #     float get_sensor_input_high_threshold(int sensor_index, int input_index); //get the high threshold of the value, the status of this item is not ok if the current
@@ -267,7 +268,7 @@ def num(ctx):
     if ctx.obj == "psu":
         click.echo(str(platform_psuutil.get_num_psus()))
     if ctx.obj == "fan":
-        click.echo(str(platform_fanutil.get_num_fans()))
+        click.echo(str(len(platform_fanutil.get_fans_name_list())))
     if ctx.obj == "sensor":
         click.echo(str(platform_sensorutil.get_num_sensors()))
 
@@ -309,12 +310,11 @@ def status(ctx):
             click.echo(tabulate(status_table, header, tablefmt="simple"))
 
     if ctx.obj == "fan":
-        supported_fan = range(1,platform_fanutil.get_num_fans()+1)
+        supported_fans = platform_fanutil.get_fans_name_list()
         header = ['FAN','Status','Speed','Low_thd','High_thd','PN','SN']
         status_table = []
 
-        for fan in supported_fan:
-            fan_name = "FAN {}".format(fan)
+        for fan in supported_fans:
             speed = float("-inf")
             low_threshold = float("-inf")
             high_threshold = float("-inf")
@@ -324,20 +324,20 @@ def status(ctx):
             speed = platform_fanutil.get_fan_speed(fan)
             low_threshold = platform_fanutil.get_fan_low_threshold(fan)
             high_threshold = platform_fanutil.get_fan_high_threshold(fan)
-            if (speed > high_threshold) or ( speed < low_threshold):
+            if (float(speed) > float(high_threshold)) or ( float(speed) < float(low_threshold)):
                 status = "NOT_OK"
             else :
                 status = "OK"
             pn = platform_fanutil.get_fan_pn(fan)
             sn = platform_fanutil.get_fan_sn(fan)
-            status_table.append([fan_name,status,(str(speed)+" RPM"),\
+            status_table.append([fan,status,(str(speed)+" RPM"),\
                                  (str(low_threshold)+" RPM"),(str(high_threshold)+" RPM"),pn,sn])
         if status_table:
             click.echo(tabulate(status_table, header, tablefmt="simple"))
 
     if ctx.obj == "sensor":
         supported_sensors = range(1,platform_sensorutil.get_num_sensors()+1)
-        header = ['Sensor','InputName', 'Value', 'Low_thd','High_thd']
+        header = ['Sensor','InputName', 'State', 'Value', 'Low_thd','High_thd']
         status_table = []
         for sensor in supported_sensors:
             sensor_name = "N/A"
@@ -360,10 +360,18 @@ def status(ctx):
                     suffix = ' C'
                 elif input_type == "voltage":
                     suffix = ' V'
+                elif input_type  == "RPM":
+                    suffix = ' RPM'
+                elif input_type  == "power":
+                    suffix = ' W'
                 value = platform_sensorutil.get_sensor_input_value(sensor, input)
                 low_thd = platform_sensorutil.get_sensor_input_low_threshold(sensor, input)
                 high_thd = platform_sensorutil.get_sensor_input_high_threshold(sensor, input)
-                status_table.append([sensor_name,input_name,(str(value)+suffix),(str(low_thd)+suffix),(str(high_thd)+suffix)])
+                state = "NOT_OK"
+                if float(value)>float(low_thd) and float(value)<float(high_thd):
+                    state = "OK"
+
+                status_table.append([sensor_name,input_name,state, (str(value)+suffix),(str(low_thd)+suffix),(str(high_thd)+suffix)])
         if status_table:
             click.echo(tabulate(status_table, header, tablefmt="simple"))
 
