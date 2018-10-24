@@ -26,7 +26,7 @@
  */
 
 #ifndef TEST_MODE
-#define MOD_VERSION "0.0.2"
+#define MOD_VERSION "0.0.3"
 #else
 #define MOD_VERSION "TEST"
 #endif
@@ -1264,18 +1264,25 @@ static int i2c_xcvr_access(u8 register_address, unsigned int portid, u8 *data, c
      * Then calculate the cpld's port index from matrix.
      */
     row = (portid -1 ) % 4;
-    col = (portid -1 ) % 8;
-    portid = ( 4 * col ) + row + 1;
+    col = (portid -1 ) / 8;
 
-    if( cpldi < 8 )
+    // Line card select top/buttom
+    if( lci < 4 ){
         i2c_adapter_index = SW1_I2C_CPLD_INDEX;
-    else
-        i2c_adapter_index =  SW2_I2C_CPLD_INDEX;
-    
-    if( lci < 4 )
+    }else{
+        i2c_adapter_index = SW2_I2C_CPLD_INDEX;
+    }
+
+    // CPLD select left/right
+    if( cpldi < 8 ){
         dev_addr = CPLD1_SLAVE_ADDR;
-    else
+    }else{
+        col -= 8;
         dev_addr = CPLD2_SLAVE_ADDR;
+    }
+    
+    // Calculate cpld portid
+    portid = ( 4 * col ) + row + 1;
 
     // Select port
     err = fpga_i2c_access(fpga_data->i2c_adapter[i2c_adapter_index], dev_addr, 0x00, I2C_SMBUS_WRITE, 
