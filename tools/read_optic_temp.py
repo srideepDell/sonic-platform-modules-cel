@@ -1,25 +1,26 @@
 #!/usr/bin/env python
+#
+# read_optic_temp.py
+#
+# Command-line utility for read the temperature of optic modules.
+#
 
-#############################################################################
-#                                                                           #
-# Platform and model specific service for send data to BMC                  #
-#                                                                           #
-#                                                                           #
-#############################################################################
-
-import subprocess
-import requests
-import os
-import imp
-import multiprocessing.pool
-import threading
+try:
+    import sys
+    import os
+    import subprocess
+    import click
+    import imp
+    import multiprocessing.pool
+    import threading
+except ImportError as e:
+    raise ImportError("%s - required module not found" % str(e))
 
 
 PLATFORM_ROOT_PATH = '/usr/share/sonic/device'
 SONIC_CFGGEN_PATH = '/usr/local/bin/sonic-cfggen'
 HWSKU_KEY = 'DEVICE_METADATA.localhost.hwsku'
 PLATFORM_KEY = 'DEVICE_METADATA.localhost.platform'
-TEMP_URL = 'http://[fe80::1:1%eth0.4088]:8080/api/sys/temp'
 
 PLATFORM_SPECIFIC_SFP_MODULE_NAME = "sfputil"
 PLATFORM_SPECIFIC_SFP_CLASS_NAME = "SfpUtil"
@@ -27,13 +28,12 @@ PLATFORM_SPECIFIC_SFP_CLASS_NAME = "SfpUtil"
 PLATFORM_SPECIFIC_OPTICTEMP_MODULE_NAME = "optictemputil"
 PLATFORM_SPECIFIC_OPTICTEMP_CLASS_NAME = "OpticTempUtil"
 
-PLATFORM_SPECIFIC_CPUTEMP_MODULE_NAME = "cputemputil"
-PLATFORM_SPECIFIC_CPUTEMP_CLASS_NAME = "CpuTempUtil"
-
-platform_sfputil = None
+# Global platform-specific psuutil class instance
 platform_optictemputil = None
-platform_cputemputil = None
+platform_sfputil = None
 
+
+# ==================== Methods for initialization ====================
 
 # Returns platform and HW SKU
 def get_platform_and_hwsku():
@@ -90,43 +90,71 @@ def load_platform_util(module_name, class_name):
         module_file = "/".join([platform_path, "plugins", module_name + ".py"])
         module = imp.load_source(module_name, module_file)
     except IOError, e:
-        print("Failed to load platform module '%s': %s" % (
-            module_name, str(e)), True)
-        return -1
+        print("Failed to load platform module '%s': %s" % (module_name, str(e)))
+        sys.exit(1)
 
     try:
         platform_util_class = getattr(module, class_name)
         platform_util = platform_util_class()
     except AttributeError, e:
-        print("Failed to instantiate '%s' class: %s" %
-              (class_name, str(e)), True)
-        return -2
+        print("Failed to instantiate '%s' class: %s" % (class_name, str(e)))
+        sys.exit(1)
 
     return platform_util
 
 
 def get_optic_temp(port_list):
-    temp_list = [0]
+    temp_list = []
     for idx, port_num in enumerate(port_list[0]):
         temp = platform_optictemputil.get_optic_temp(
             port_num, port_list[1][idx])
-        temp_list.append(float(temp))
-    return max(temp_list)
+        temp_list.append(round(float(temp), 2))
+    return temp_list
 
 
-def get_max_optic_temp():
+# ========================= CLI commands =========================
+
+# This is our main entrypoint - the main 'opticutil' command
+@click.command()
+@click.option('--port_num', '-p', type=int, help='Specific port number')
+def cli(port_num):
+    """optictemputil - Command line utility for providing platform status"""
+
+    # Check root privileges
+    if os.geteuid() != 0:
+        click.echo("Root privileges are required for this operation")
+        sys.exit(1)
+
+    global platform_optictemputil
+    global platform_sfputil
+
+    # Load platform-specific class
+    platform_sfputil = load_platform_util(
+        PLATFORM_SPECIFIC_SFP_MODULE_NAME, PLATFORM_SPECIFIC_SFP_CLASS_NAME)
+    platform_optictemputil = load_platform_util(
+        PLATFORM_SPECIFIC_OPTICTEMP_MODULE_NAME, PLATFORM_SPECIFIC_OPTICTEMP_CLASS_NAME)
+
+    # Load port config
     port_config_file_path = get_path_to_port_config_file()
     platform_sfputil.read_porttab_mappings(port_config_file_path)
     port_list = platform_sfputil.port_to_i2cbus_mapping
     qsfp_port_list = platform_sfputil.qsfp_ports
 
-    port_data_list = []
+    port_dict = {}
     temp_list = [0]
     i2c_block_size = 32
     concurrent = 10
 
+    port_data_list = []
     port_bus_list = []
     port_type_list = []
+
+    # Read port temperature
+    if port_num:
+        if port_num not in port_list:
+            click.echo("Invalid port")
+            sys.exit(1)
+        port_list = {port_num: port_list.get(port_num)}
 
     for port_num, bus_num in port_list.items():
         port_type = "QSFP" if port_num in qsfp_port_list else "SFP"
@@ -145,54 +173,16 @@ def get_max_optic_temp():
     pool = multiprocessing.pool.ThreadPool(processes=concurrent)
     temp_list = pool.map(get_optic_temp, port_data_list, chunksize=1)
     pool.close()
-    return max(temp_list)
+
+    flat_list = [item for sublist in temp_list for item in sublist]
+    click.echo("| PORT_NO\t| PORT_TYPE\t| TEMPERATURE\t|")
+    for port_num, bus_num in port_list.items():
+        port_type = "QSFP" if port_num in qsfp_port_list else "SFP"
+        temp_idx = port_list.keys().index(port_num)
+        temp = flat_list[temp_idx]
+        click.echo('| {}\t\t| {}\t\t| {}\t\t|'.format(
+            port_num, port_type, temp))
 
 
-# Send CPU temperature to BMC.
-def send_cpu_temp():
-    max_cpu_tmp = platform_cputemputil.get_max_cpu_tmp()
-    json_input = {
-        "chip": "cpu",
-        "option": "input",
-        "value": str(int(max_cpu_tmp))
-    }
-    print "send ", json_input
-    requests.post(TEMP_URL, json=json_input)
-
-
-# Send maximum optic module temperature to BMC.
-def send_optic_temp():
-    max_optic_temp = get_max_optic_temp()
-    json_input = {
-        "chip": "optical",
-        "option": "input",
-        "value": str(int(max_optic_temp))
-    }
-    print "send ", json_input
-    requests.post(TEMP_URL, json=json_input)
-
-
-def main():
-    global platform_sfputil
-    global platform_cputemputil
-    global platform_optictemputil
-
-    try:
-        platform_sfputil = load_platform_util(
-            PLATFORM_SPECIFIC_SFP_MODULE_NAME, PLATFORM_SPECIFIC_SFP_CLASS_NAME)
-        platform_cputemputil = load_platform_util(
-            PLATFORM_SPECIFIC_CPUTEMP_MODULE_NAME, PLATFORM_SPECIFIC_CPUTEMP_CLASS_NAME)
-        platform_optictemputil = load_platform_util(
-            PLATFORM_SPECIFIC_OPTICTEMP_MODULE_NAME, PLATFORM_SPECIFIC_OPTICTEMP_CLASS_NAME)
-
-        t1 = threading.Thread(target=send_cpu_temp)
-        t2 = threading.Thread(target=send_optic_temp)
-        t1.start()
-        t2.start()
-    except Exception, e:
-        print e
-        pass
-
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    cli()
