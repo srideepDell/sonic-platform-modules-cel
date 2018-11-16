@@ -112,6 +112,15 @@ def get_optic_temp(port_list):
     return temp_list
 
 
+def get_optic_temp_an_sn(port_list):
+    data_list = []
+    for idx, port_num in enumerate(port_list[0]):
+        temp, sn = platform_optictemputil.get_optic_temp_and_sn(
+            port_num, port_list[1][idx])
+        data_list.append((round(float(temp), 2), sn))
+    return data_list
+
+
 # ========================= CLI commands =========================
 
 # This is our main entrypoint - the main 'opticutil' command
@@ -171,17 +180,20 @@ def cli(port_num):
         port_data_list.append(port_tub)
 
     pool = multiprocessing.pool.ThreadPool(processes=concurrent)
-    temp_list = pool.map(get_optic_temp, port_data_list, chunksize=1)
+    temp_list = pool.map(get_optic_temp_an_sn, port_data_list, chunksize=1)
     pool.close()
 
     flat_list = [item for sublist in temp_list for item in sublist]
-    click.echo("| PORT_NO\t| PORT_TYPE\t| TEMPERATURE\t|")
+    click.echo("| {:8s}| {:10s}| {:<18}| {:8s}|".format(
+        "PORT_NO", "PORT_TYPE", "SERIAL_NUMBER", "TEMPERATURE"))
     for port_num, bus_num in port_list.items():
         port_type = "QSFP" if port_num in qsfp_port_list else "SFP"
-        temp_idx = port_list.keys().index(port_num)
-        temp = flat_list[temp_idx]
-        click.echo('| {}\t\t| {}\t\t| {}\t\t|'.format(
-            port_num, port_type, temp))
+        data_idx = port_list.keys().index(port_num)
+        temp = str(flat_list[data_idx][0])
+        sn = flat_list[data_idx][1]
+        sn_str = str("").ljust(18) if len(sn) == 16 else str(sn).ljust(18)
+        click.echo('| {:8s}| {:10s}| {}| {:8s}|'.format(
+            str(port_num), port_type, sn_str, temp))
 
 
 if __name__ == '__main__':

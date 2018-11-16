@@ -111,7 +111,7 @@ def get_optic_temp(port_list):
         temp = platform_optictemputil.get_optic_temp(
             port_num, port_list[1][idx])
         temp_list.append(float(temp))
-    return max(temp_list)
+    return temp_list
 
 
 def get_max_optic_temp():
@@ -145,7 +145,9 @@ def get_max_optic_temp():
     pool = multiprocessing.pool.ThreadPool(processes=concurrent)
     temp_list = pool.map(get_optic_temp, port_data_list, chunksize=1)
     pool.close()
-    return max(temp_list)
+    flat_list = [item for sublist in temp_list for item in sublist]
+    temp_list = sorted(flat_list)
+    return temp_list[-2]
 
 
 # Send CPU temperature to BMC.
