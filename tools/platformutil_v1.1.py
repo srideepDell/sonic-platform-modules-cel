@@ -31,6 +31,30 @@
 #     str get_psu_sn(int index)       //get the serial number of the psu, return value example: "M623TW004ZAAL"
 #     str get_psu_pn(int index)       //get the product name of the psu, return value example: "CSU550AP-3-300"
 #
+#     // Get all information of PSUs, returns JSON objects in python 'DICT'.
+#     // return value of get_all():
+#     //     Number: mandatory, max number of PSU, integer
+#     //     PSU1, PSU2, ...: mandatory, PSU name, string
+#     //     Present: mandatory for each PSU, present status, boolean, True for present, False for NOT present
+#     //     PowerStatus: conditional, if PRESENT is True, power status of PSU,
+#     //                  boolean, True for powered, False for NOT powered
+#     //     PN, conditional, if PRESENT is True, PN of the PSU, string
+#     //     SN, conditional, if PRESENT is True, SN of the PSU, string
+#     //     example:
+#     //     {
+#     //         "Number": 2,
+#     //         "PSU1": {
+#     //             "Present": True,
+#     //             "PowerStatus": True,
+#     //             "PN": "PN-EXAMPLE-123",
+#     //             "SN": "SN-EXAMPLE-123"
+#     //         },
+#     //         "PSU2": {
+#     //             "Present": False
+#     //         }
+#     //     }
+#     dict get_all()
+
 # class FanUtil:
 #     int get_fans_name_list();     //get the names of all the fans(FAN1-1,FAN1-2,FAN2-1,FAN2-2...)
 #     int get_fan_speed(int index);   //get the current speed of the fan, the unit is "RPM"
@@ -38,6 +62,54 @@
 #     int get_fan_high_threshold(int index); //get the hight speed threshold of the fan, if the current speed > high speed threshold, the status of the fan is not ok
 #     str get_fan_pn(int index);//get the product name of the fan
 #     str get_fan_sn(int index);//get the serial number of the fan
+#     // Get all information of system FANs, returns JSON objects in python 'DICT'.
+#     // Number, mandatory, max number of FAN, integer
+#     // FAN1_1, FAN1_2, ... mandatory, FAN name, string
+#     // Present, mandatory for each FAN, present status, boolean, True for present, False for NOT present, read directly from h/w
+#     // Running, conditional, if PRESENT is True, running status of the FAN, True for running, False for stopped, read directly from h/w
+#     // Speed, conditional, if PRESENT is True, real FAN speed, float, read directly from h/w
+#     // LowThd, conditional, if PRESENT is True, lower bound of FAN speed, float, read from h/w
+#     // HighThd, conditional, if PRESENT is True, upper bound of FAN speed, float, read from h/w
+#     // PN, conditional, if PRESENT is True, PN of the FAN, string
+#     // SN, conditional, if PRESENT is True, SN of the FAN, string
+#     // Return value python 'dict' object example:
+#     // {
+#     //     "Number": 3,
+#     //     "FAN1_1": {
+#     //         "Present": True,
+#     //         "Running": True,
+#     //         "Speed": 2000.0,
+#     //         "LowThd": 1000.0,
+#     //         "HighThd": 15000.0,
+#     //         "PN": "PN-EXAMPLE-123",
+#     //         "SN": "SN-EXAMPLE-123"
+#     //     },
+#     //     "FAN1_2": {
+#     //         "Present": True,
+#     //         "Running": True,
+#     //         "Speed": 2500.0,
+#     //         "LowThd": 1000.0,
+#     //         "HighThd": 15000.0,
+#     //         "PN": "PN-EXAMPLE-456",
+#     //         "SN": "SN-EXAMPLE-456"
+#     //     },
+#     //     "FAN2_1": {
+#     //         "Present": True,
+#     //         "Running": False
+#     //     },
+#     //     "FAN2_2": {
+#     //         "Present": True,
+#     //         "Running": False
+#     //     },
+#     //     "FAN3_1": {
+#     //         "Present": False
+#     //     },
+#     //     "FAN3_2": {
+#     //         "Present": False
+#     //     }
+#     // }
+#     dict get_all()
+
 #
 # class SensorUtil:
 #     int get_num_sensors();  //get the number of sensors
@@ -51,6 +123,50 @@
 #                                                                                 //value<low_threshold
 #     float get_sensor_input_high_threshold(int sensor_index, int input_index); //get the high threshold of the value, the status of this item is not ok if the current
 #                                                                                   // value > high_threshold
+#     // Get all information of system sensors, returns JSON objects in python 'DICT'.
+#     // SensorName1, SensorName2, ... optional, string
+#     // SensorInput1, SensorInput2, ... optional, string
+#     // Type, mandatory in SensorInput$INDEX, should be on of { "temperature", "voltage", "power", "amp", "RPM" }
+#     // Value, mandatory in SensorInput$INDEX, float , real value
+#     // LowThd, mandatory in SensorInput$INDEX, float , lower bound of value
+#     // HighThd, mandatory in SensorInput$INDEX, float , upper bound of value
+#     // Return python 'dict' objects, example:
+#     // {
+#     //     "SensorName1": {
+#     //         "SensorInput1": {
+#     //             "Type": "temperature",
+#     //             "Value": 30.0,
+#     //             "LowThd": 0.0,
+#     //             "HighThd": 100.0"
+#     //         },
+#     //         "SensorInput2": {
+#     //             "Type": "voltage",
+#     //             "Value": 0.5,
+#     //             "LowThd": 0.0,
+#     //             "HighThd": 1.5
+#     //         },
+#     //         "SensorInput3": {
+#     //             "Type": "power",
+#     //             "Value": 2.5,
+#     //             "LowThd": 0.0,
+#     //             "HighThd": 5.0
+#     //         }
+#     //     },
+#     //     "SensorName2": {
+#     //         "SensorInput1": {
+#     //             "Type": "RPM",
+#     //             "Value": 2000.0,
+#     //             "LowThd": 1000.0,
+#     //             "HighThd": 15000.0
+#     //         },
+#     //         "SensorInputName2": {
+#     //             "Type": "amp",
+#     //             "Value": 0.1,
+#     //             "LowThd": 0.0,
+#     //             "HighThd": 0.3
+#     //         }
+#     //     }
+#     // }
 
 try:
     import sys
@@ -65,7 +181,7 @@ try:
 except ImportError as e:
     raise ImportError("%s - required module not found" % str(e))
 
-VERSION = '1.0'
+VERSION = '1.1'
 
 SYSLOG_IDENTIFIER = "platformutil"
 PLATFORM_PSU_MODULE_NAME = "psuutil"
@@ -276,104 +392,180 @@ psu.add_command(num)
 sensor.add_command(num)
 fan.add_command(num)
 
-
 # 'status' subcommand
 #all API should return "N/A" or float("-intf") if not supported
 @click.command()
 @click.pass_context
 def status(ctx):
-    """Display PSU/FAN/SENSOR status"""
-    if ctx.obj == "psu":
-        supported_psu = range(1, platform_psuutil.get_num_psus() + 1)
+    if ctx.obj == 'psu':
+        psu_dict = platform_psuutil.get_all()
+        if psu_dict == None:
+            print 'Error: psuutil.get_all() failed'
+            return
+
+        psu_nr = psu_dict.get('Number')
+        if psu_nr == None:
+            print 'Error: PSU get all format invalid, prop "Number" missing.'
+            return
+
+        psu_names = [ k for k in psu_dict.keys() if cmp('Number', k) != 0 ]
+        psu_names.sort()
         header = ['PSU', 'Presence', 'Status', 'PN', 'SN']
         status_table = []
-
-        for psu in supported_psu:
-            presence_str = "N/A"
-            status_str = "N/A"
-            #product name
-            pn = "N/A"
-            # serial number
-            sn = "N/A"
-            psu_name = "PSU {}".format(psu)
-            presence = platform_psuutil.get_psu_presence(psu)
-            if presence:
-                presence_str = 'PRESENT'
-                oper_status = platform_psuutil.get_psu_status(psu)
-                status_str = 'OK' if oper_status else "NOT_OK"
-                sn = platform_psuutil.get_psu_sn(psu)
-                pn = platform_psuutil.get_psu_pn(psu)
+        for psu_name in psu_names:
+            psu = psu_dict[psu_name]
+            presence = psu.get('Present')
+            pwr_status = psu.get('PowerStatus')
+            pn = psu.get('PN')
+            sn = psu.get('SN')
+            if presence == None:
+                print 'Error: PSU get all format invaid, prop "Present" missing.'
+                continue
+            elif presence == False:
+                presence = 'NOT_PRESENT'
+                pwr_status = 'N/A'
+                pn = 'N/A'
+                sn = 'N/A'
             else:
-                presence_str = 'NOT_PRESENT'
-            status_table.append([psu_name,presence_str, status_str,pn,sn])
-        if status_table:
-            click.echo(tabulate(status_table, header, tablefmt="simple"))
+                presence = 'PRESENT'
+                if pwr_status == None:
+                    pwr_status = 'N/A'
+                elif pwr_status == True:
+                    pwr_status = 'OK'
+                else:
+                    pwr_status = 'NOT_OK'
+                if pn == None:
+                    pn = 'N/A'
+                if sn == None:
+                    sn = 'N/A'
+            status_table.append([psu_name, presence, pwr_status, pn, sn])
 
-    if ctx.obj == "fan":
-        supported_fans = platform_fanutil.get_fans_name_list()
-        header = ['FAN','Status','Speed','Low_thd','High_thd','PN','SN']
+        if len(status_table) != psu_nr:
+            print 'Error: PSU get all missing some PSU information.'
+
+        if len(status_table) > 0:
+            click.echo(tabulate(status_table, header, tablefmt='simple'))
+
+    if ctx.obj == 'fan':
+        fan_dict = platform_fanutil.get_all()
+        if fan_dict == None:
+            print 'Error: fanutil.get_all() failed'
+            return
+
+        fan_nr = fan_dict.get('Number')
+        if fan_nr == None:
+            print 'Error: FAN get all format invalid, prop "Number" missing.'
+            return
+
+        header = [ 'FAN', 'Presence', 'Running', 'Speed', 'LowThd', 'HighThd', 'PN', 'SN' ]
         status_table = []
+        fan_names = [ k for k in fan_dict.keys() if cmp('Number', k) != 0 ]
+        fan_names.sort()
+        for fan_name in fan_names:
+            fan = fan_dict[fan_name]
+            presence = fan.get('Present')
+            running = fan.get('Running')
+            speed = fan.get('Speed')
+            low = fan.get('LowThd')
+            high = fan.get('HighThd')
+            pn = fan.get('PN')
+            sn = fan.get('SN')
 
-        for fan in supported_fans:
-            speed = float("-inf")
-            low_threshold = float("-inf")
-            high_threshold = float("-inf")
-            pn = "N/A"
-            sn = "N/A"
-            status = "N/A"
-            speed = platform_fanutil.get_fan_speed(fan)
-            low_threshold = platform_fanutil.get_fan_low_threshold(fan)
-            high_threshold = platform_fanutil.get_fan_high_threshold(fan)
-            if (float(speed) > float(high_threshold)) or ( float(speed) < float(low_threshold)):
-                status = "NOT_OK"
-            else :
-                status = "OK"
-            pn = platform_fanutil.get_fan_pn(fan)
-            sn = platform_fanutil.get_fan_sn(fan)
-            status_table.append([fan,status,(str(speed)+" RPM"),\
-                                 (str(low_threshold)+" RPM"),(str(high_threshold)+" RPM"),pn,sn])
-        if status_table:
-            click.echo(tabulate(status_table, header, tablefmt="simple"))
+            if presence == None:
+                print 'Error: FAN get all format invaid, prop "Present" missing.'
+                continue
+            elif presence == False:
+                presence = 'NOT_PRESENT'
+                running = 'N/A'
+                speed = 'N/A'
+                low = 'N/A'
+                high = 'N/A'
+                pn = 'N/A'
+                sn = 'N/A'
+            else:
+                presence = 'PRESENT'
+                if running == None:
+                    print 'Error: FAN get all format invalid, prop "Running" missing.'
+                    running = 'N/A'
+                elif running == True:
+                    running = 'YES'
+                else:
+                    running = 'NO'
+                if speed == None:
+                    speed = 'N/A'
+                if low == None:
+                    low = 'N/A'
+                if high == None:
+                    high = 'N/A'
+                if pn == None:
+                    pn = 'N/A'
+                if sn == None:
+                    sn = 'N/A'
 
-    if ctx.obj == "sensor":
-        supported_sensors = range(1,platform_sensorutil.get_num_sensors()+1)
-        header = ['Sensor','InputName', 'State', 'Value', 'Low_thd','High_thd']
+            status_table.append([fan_name, presence, running, speed, low, high, pn, sn])
+
+        if len(status_table) != fan_nr:
+            print 'Error: FAN get all missing some FAN information.'
+
+        if len(status_table) > 0:
+            click.echo(tabulate(status_table, header, tablefmt='simple'))
+
+    if ctx.obj == 'sensor':
+        sensor_dict = platform_sensorutil.get_all()
+        if sensor_dict == None:
+            print 'Error: sensors.get_all() failed'
+            return
+
+        header = [ 'Sensor', 'InputName', 'State', 'Value', 'LowThd', 'HighThd' ]
         status_table = []
-        for sensor in supported_sensors:
-            sensor_name = "N/A"
-            supported_input_num = 0
+        type2unit = { 'temperature' : ' C', 'voltage' : ' V', 'RPM' : ' RPM', 'amp' : ' A', 'power' : ' W'}
+        type_keys = type2unit.keys()
+        for sensor_name, sensor_obj in sensor_dict.items():
+            if cmp(sensor_name, 'Number') == 0:
+                continue
 
-            supported_input_num = platform_sensorutil.get_sensor_input_num(sensor)
-            sensor_name = platform_sensorutil.get_sensor_name(sensor)
-            supported_input = range(1,supported_input_num+1)
-            for input in supported_input:
-                input_name = "N/A"
-                input_type = "temperature"# "temperature" or "voltage"
-                value = float("-inf")
-                low_thd = float("-inf")
-                high_thd = float("-inf")
-                suffix = " "
+            si_names = [ k for k in sensor_obj.keys() ]
+            si_names.sort()
+            for si_name in si_names:
+                si = sensor_obj[si_name]
+                stype = si.get('Type')
+                sval = si.get('Value')
+                slow = si.get('LowThd')
+                shigh = si.get('HighThd')
+                sunit = ' '
+                fault = False
+                if stype != None:
+                    sunit = type2unit.get(stype)
+                    if sunit == None:
+                        sunit = ' '
+                try:
+                    sval = float(sval)
+                except:
+                    sval = 0.0
+                    fault = True
 
-                input_name = platform_sensorutil.get_sensor_input_name(sensor,input)
-                input_type = platform_sensorutil.get_sensor_input_type(sensor, input)
-                if input_type == "temperature":
-                    suffix = ' C'
-                elif input_type == "voltage":
-                    suffix = ' V'
-                elif input_type  == "RPM":
-                    suffix = ' RPM'
-                elif input_type  == "power":
-                    suffix = ' W'
-                value = platform_sensorutil.get_sensor_input_value(sensor, input)
-                low_thd = platform_sensorutil.get_sensor_input_low_threshold(sensor, input)
-                high_thd = platform_sensorutil.get_sensor_input_high_threshold(sensor, input)
-                state = "NOT_OK"
-                if float(value)>float(low_thd) and float(value)<float(high_thd):
-                    state = "OK"
+                try:
+                    slow = float(slow)
+                except:
+                    slow = 0.0
+                    fault = True
 
-                status_table.append([sensor_name,input_name,state, (str(value)+suffix),(str(low_thd)+suffix),(str(high_thd)+suffix)])
-        if status_table:
+                try:
+                    shigh = float(shigh)
+                except:
+                    shigh = 0.0
+                    fault = True
+
+                status = 'NOT_OK'
+                if fault == False and sval > slow and sval < shigh:
+                    status = 'OK'
+
+                status_table.append([sensor_name, si_name, status, (str(sval)+sunit), (str(slow)+sunit), (str(shigh)+sunit)])
+
+        if len(status_table) > 0:
             click.echo(tabulate(status_table, header, tablefmt="simple"))
+
+    return
 
 psu.add_command(status)
 sensor.add_command(status)
