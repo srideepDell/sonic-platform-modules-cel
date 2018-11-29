@@ -7,5 +7,5 @@ update-rc.d platform-modules-phalanx defaults
 service platform-modules-phalanx start
 
 # Enable platform-sync_bmc-timer
-systemctl enable sync_bmc.timer
-systemctl start sync_bmc.timer
+# systemctl enable sync_bmc.timer
+# systemctl start sync_bmc.timer
