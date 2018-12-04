@@ -19,7 +19,7 @@ PLATFORM_ROOT_PATH = '/usr/share/sonic/device'
 SONIC_CFGGEN_PATH = '/usr/local/bin/sonic-cfggen'
 HWSKU_KEY = 'DEVICE_METADATA.localhost.hwsku'
 PLATFORM_KEY = 'DEVICE_METADATA.localhost.platform'
-TEMP_URL = 'http://[fe80::1:1%eth0.4088]:8080/api/sys/temp'
+TEMP_URL = 'http://240.1.1.1:8080/api/sys/temp'
 
 PLATFORM_SPECIFIC_SFP_MODULE_NAME = "sfputil"
 PLATFORM_SPECIFIC_SFP_CLASS_NAME = "SfpUtil"
