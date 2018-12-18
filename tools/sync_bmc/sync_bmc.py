@@ -106,11 +106,11 @@ def load_platform_util(module_name, class_name):
 
 
 def get_optic_temp(port_list):
-    temp_list = [0]
+    temp_list = []
     for idx, port_num in enumerate(port_list[0]):
         temp = platform_optictemputil.get_optic_temp(
-            port_num, port_list[1][idx])
-        temp_list.append(float(temp))
+            port_num, port_list[1][idx]) if port_list[2][idx] else 0
+        temp_list.append(round(float(temp), 2))
     return max(temp_list)
 
 
@@ -127,19 +127,23 @@ def get_max_optic_temp():
 
     port_bus_list = []
     port_type_list = []
+    port_presence_list = []
 
     for port_num, bus_num in port_list.items():
         port_type = "QSFP" if port_num in qsfp_port_list else "SFP"
         port_bus_list.append(bus_num)
         port_type_list.append(port_type)
+        status = platform_sfputil.get_presence(port_num)
+        port_presence_list.append(status)
         if len(port_bus_list) >= i2c_block_size:
-            port_tub = (port_bus_list, port_type_list)
+            port_tub = (port_bus_list, port_type_list, port_presence_list)
             port_data_list.append(port_tub)
             port_bus_list = []
             port_type_list = []
+            port_presence_list = []
 
     if port_bus_list != []:
-        port_tub = (port_bus_list, port_type_list)
+        port_tub = (port_bus_list, port_type_list, port_presence_list)
         port_data_list.append(port_tub)
 
     pool = multiprocessing.pool.ThreadPool(processes=concurrent)
