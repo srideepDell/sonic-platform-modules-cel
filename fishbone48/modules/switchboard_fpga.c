@@ -52,6 +52,7 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/jiffies.h>
+#include <linux/sched.h>
 
 static int  majorNumber;
 
@@ -1283,7 +1284,7 @@ static int i2c_wait_ack(struct i2c_adapter *a, unsigned long timeout, int writin
     while (1) {
         Status = ioread8(pci_bar + REG_STAT);
         dev_dbg(&a->dev,"ST:%2.2X\n", Status);
-        if (jiffies > timeout) {
+        if (time_after(jiffies, timeout)) {
             info("Status %2.2X", Status);
             info("Error Timeout");
             error = -ETIMEDOUT;
@@ -1294,6 +1295,9 @@ static int i2c_wait_ack(struct i2c_adapter *a, unsigned long timeout, int writin
             dev_dbg(&a->dev,"  IF:%2.2X\n", Status);
             break;
         }
+
+        cpu_relax();
+        cond_resched();
     }
     info("Status %2.2X", Status);
     info("STA:%x",Status);
