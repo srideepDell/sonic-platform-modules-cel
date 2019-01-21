@@ -1642,7 +1642,6 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
                 }else{
                     dev_dbg(&adapter->dev,"Failed to deselect ch %d of 0x%x, CODE %d\n", prev_ch, prev_switch, error);
                 }
-                mdelay(1);
             }
             if(retry == 0)
                 goto release_unlock;
@@ -1655,7 +1654,6 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
                 }else{
                     dev_dbg(&adapter->dev,"Failed to deselect ch %d of 0x%x, CODE %d\n", prev_ch, prev_switch, error);
                 }
-                mdelay(1);
             }
             if(retry == 0)
                 goto release_unlock;
@@ -1674,7 +1672,6 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
                     }else{
                     dev_dbg(&adapter->dev,"Failed to deselect ch %d of 0x%x, CODE %d\n", prev_ch, prev_switch, error);
                 }
-                mdelay(1);
             }
             if(retry == 0)
                 goto release_unlock;
