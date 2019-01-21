@@ -25,7 +25,7 @@
  */
 
 #ifndef TEST_MODE
-#define MOD_VERSION "0.3.5"
+#define MOD_VERSION "0.3.6"
 #else
 #define MOD_VERSION "TEST"
 #endif
@@ -1151,11 +1151,10 @@ static int i2c_core_init(unsigned int master_bus, unsigned int freq_div,void __i
 
     // Makes sure core is disable
     ctrl = ioread8(pci_bar + REG_CTRL);
-    iowrite8( ctrl & ~(1 << I2C_CTRL_EN | 1 << I2C_CTRL_IEN), pci_bar + REG_CTRL);
+    iowrite8( ctrl & ~(1 << I2C_CTRL_EN), pci_bar + REG_CTRL);
     iowrite8( freq_div & 0xFF , pci_bar + REG_FREQ_L);
     iowrite8( freq_div >> 8, pci_bar + REG_FREQ_H);
-    iowrite8(1 << I2C_CMD_IACK, pci_bar + REG_CMD);
-    iowrite8(1 << I2C_CTRL_EN | 1 << I2C_CTRL_IEN, pci_bar + REG_CTRL);
+    iowrite8(1 << I2C_CTRL_EN, pci_bar + REG_CTRL);
 
     return 0;
 }
@@ -1165,7 +1164,7 @@ static void i2c_core_deinit(unsigned int master_bus,void __iomem *pci_bar){
     unsigned int REG_CTRL;
     REG_CTRL = I2C_MASTER_CTRL + (master_bus - 1) * 0x20;
     // Disable core
-    iowrite8( ioread8(pci_bar + REG_CTRL) & ~(1 << I2C_CTRL_EN| 1 << I2C_CTRL_IEN), pci_bar + REG_CTRL);
+    iowrite8( ioread8(pci_bar + REG_CTRL) & ~(1 << I2C_CTRL_EN), pci_bar + REG_CTRL);
 }
 
 static int i2c_xcvr_access(u8 register_address, unsigned int portid, u8 *data, char rw){
@@ -1248,6 +1247,69 @@ static int wait_RXACK(struct i2c_adapter *a, unsigned long timeout)
     }
 }
 
+
+static int i2c_wait_stop(struct i2c_adapter *a, unsigned long timeout, int writing) {
+    int error = 0;
+    int Status;
+
+    struct i2c_dev_data *new_data = i2c_get_adapdata(a);
+    void __iomem *pci_bar = fpga_dev.data_base_addr;
+
+    unsigned int REG_FREQ_L;
+    unsigned int REG_FREQ_H;
+    unsigned int REG_CMD;
+    unsigned int REG_CTRL;
+    unsigned int REG_STAT;
+    unsigned int REG_DATA;
+
+    unsigned int master_bus = new_data->pca9548.master_bus;
+
+    if (master_bus < I2C_MASTER_CH_1 || master_bus > I2C_MASTER_CH_TOTAL) {
+        error = -EINVAL;
+        return error;
+    }
+
+    REG_FREQ_L = I2C_MASTER_FREQ_L  + (master_bus - 1) * 0x20;
+    REG_FREQ_H = I2C_MASTER_FREQ_H  + (master_bus - 1) * 0x20;
+    REG_CTRL   = I2C_MASTER_CTRL    + (master_bus - 1) * 0x20;
+    REG_CMD    = I2C_MASTER_CMD     + (master_bus - 1) * 0x20;
+    REG_STAT   = I2C_MASTER_STATUS  + (master_bus - 1) * 0x20;
+    REG_DATA   = I2C_MASTER_DATA    + (master_bus - 1) * 0x20;
+
+    check(pci_bar + REG_STAT);
+    check(pci_bar + REG_CTRL);
+
+    dev_dbg(&a->dev,"ST:%2.2X\n", ioread8(pci_bar + REG_STAT));
+    timeout = jiffies + msecs_to_jiffies(timeout);
+    while (1) {
+        Status = ioread8(pci_bar + REG_STAT);
+        dev_dbg(&a->dev,"ST:%2.2X\n", Status);
+        if (time_after(jiffies, timeout)) {
+            info("Status %2.2X", Status);
+            info("Error Timeout");
+            error = -ETIMEDOUT;
+            break;
+        }
+
+        if ( (Status & ( 1 << I2C_STAT_BUSY ))  == 0 ) 
+        {
+            dev_dbg(&a->dev,"  IF:%2.2X\n", Status);
+            break;
+        }
+
+        cpu_relax();
+        cond_resched();
+    }
+    info("Status %2.2X", Status);
+    info("STA:%x",Status);
+
+    if (error < 0) {
+        info("Status %2.2X", Status);
+        return error;
+    }
+    return 0;
+}
+
 static int i2c_wait_ack(struct i2c_adapter *a, unsigned long timeout, int writing) {
     int error = 0;
     int Status;
@@ -1291,7 +1353,8 @@ static int i2c_wait_ack(struct i2c_adapter *a, unsigned long timeout, int writin
             break;
         }
 
-        if ( Status & ( 1 << I2C_STAT_IF ) ) {
+        if ( (Status & ( 1 << I2C_STAT_TIP ))  == 0 )
+        {
             dev_dbg(&a->dev,"  IF:%2.2X\n", Status);
             break;
         }
@@ -1408,7 +1471,7 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
         // sent device address with Write mode
         iowrite8( (addr << 1) & 0xFE, pci_bar + REG_DATA);
     }
-    iowrite8( 1 << I2C_CMD_STA | 1 << I2C_CMD_WR | 1 << I2C_CMD_IACK, pci_bar + REG_CMD);
+    iowrite8( 1 << I2C_CMD_STA | 1 << I2C_CMD_WR, pci_bar + REG_CMD);
 
     info( "MS Start");
 
@@ -1431,7 +1494,7 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
         // sent command code to data register
         iowrite8(cmd, pci_bar + REG_DATA);
         // Start the transfer
-        iowrite8(1 << I2C_CMD_WR | 1 << I2C_CMD_IACK, pci_bar + REG_CMD);
+        iowrite8(1 << I2C_CMD_WR, pci_bar + REG_CMD);
         info( "MS Send CMD 0x%2.2X", cmd);
 
         // Wait {A}
@@ -1463,7 +1526,7 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
 
         iowrite8(cnt, pci_bar + REG_DATA);
         //Start the transfer
-        iowrite8(1 << I2C_CMD_WR | 1 << I2C_CMD_IACK, pci_bar + REG_CMD);
+        iowrite8(1 << I2C_CMD_WR, pci_bar + REG_CMD);
         info( "MS Send CNT 0x%2.2X", cnt);
 
         // Wait {A}
@@ -1494,7 +1557,7 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
             info("STA:%x", ioread8(pci_bar + REG_STAT) );
             info( "   Data > %2.2X", data->block[bid]);
             iowrite8(data->block[bid], pci_bar + REG_DATA);
-            iowrite8(1 << I2C_CMD_WR | 1 << I2C_CMD_IACK, pci_bar + REG_CMD);
+            iowrite8(1 << I2C_CMD_WR, pci_bar + REG_CMD);
 
             // Wait {A}
             // IACK
@@ -1518,7 +1581,7 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
         // sent Address with Read mode
         iowrite8( addr << 1 | 0x1 , pci_bar + REG_DATA);
         // SET START | WRITE
-        iowrite8( 1 << I2C_CMD_STA | 1 << I2C_CMD_WR | 1 << I2C_CMD_IACK, pci_bar + REG_CMD);
+        iowrite8( 1 << I2C_CMD_STA | 1 << I2C_CMD_WR, pci_bar + REG_CMD);
 
         // Wait {A}
         error = i2c_wait_ack(adapter, 30, 1);
@@ -1559,10 +1622,10 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
             // Start receive FSM
             if (bid == cnt - 1) {
                 info( "READ NACK");
-                iowrite8(1 << I2C_CMD_RD | 1 << I2C_CMD_ACK | 1 << I2C_CMD_IACK, pci_bar + REG_CMD);
+                iowrite8(1 << I2C_CMD_RD | 1 << I2C_CMD_ACK, pci_bar + REG_CMD);
             }else{
 
-                iowrite8(1 << I2C_CMD_RD | 1 << I2C_CMD_IACK , pci_bar + REG_CMD);
+                iowrite8(1 << I2C_CMD_RD, pci_bar + REG_CMD);
             }
             
             // Wait {A}
@@ -1588,9 +1651,9 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
 Done:
     info( "MS STOP");
     // SET STOP
-    iowrite8( 1 << I2C_CMD_STO | 1 << I2C_CMD_IACK, pci_bar + REG_CMD);
+    iowrite8( 1 << I2C_CMD_STO, pci_bar + REG_CMD);
     // Polling for the STO to finish.
-    i2c_wait_ack(adapter, 30, 0);
+    i2c_wait_stop(adapter, 30, 0);
     check(pci_bar + REG_CTRL);
     check(pci_bar + REG_STAT);
 #ifdef DEBUG_KERN
