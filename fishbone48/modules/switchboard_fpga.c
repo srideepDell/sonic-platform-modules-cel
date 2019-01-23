@@ -1381,6 +1381,10 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
            size == 8 ? "I2C_BLOCK_DATA" :  "ERROR"
            , cmd);
 #endif
+
+    master_bus = dev_data->pca9548.master_bus;
+    error = i2c_core_init(master_bus, I2C_DIV_100K, fpga_dev.data_base_addr);
+
     /* Map the size to what the chip understands */
     switch (size) {
     case I2C_SMBUS_QUICK:
@@ -1395,8 +1399,6 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
         error = -EOPNOTSUPP;
         goto Done;
     }
-
-    master_bus = dev_data->pca9548.master_bus;
 
     if (master_bus < I2C_MASTER_CH_1 || master_bus > I2C_MASTER_CH_TOTAL) {
         error = -EINVAL;
