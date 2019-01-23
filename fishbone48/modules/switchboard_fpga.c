@@ -1601,7 +1601,7 @@ Done:
     // SET STOP
     iowrite8( 1 << I2C_CMD_STO, pci_bar + REG_CMD);
     // Polling for the STO to finish.
-    i2c_wait_stop(adapter, 30, 0);
+    udelay(50);
     check(pci_bar + REG_CTRL);
     check(pci_bar + REG_STAT);
 #ifdef DEBUG_KERN
