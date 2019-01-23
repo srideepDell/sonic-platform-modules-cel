@@ -62,6 +62,7 @@ static int  majorNumber;
 #define DEVICE_NAME "fwupgrade"
 
 static bool allow_unsafe_i2c_access;
+static int nack_retry = 0;
 
 static int smbus_access(struct i2c_adapter *adapter, u16 addr,
                         unsigned short flags, char rw, u8 cmd,
@@ -1261,6 +1262,7 @@ static int i2c_wait_stop(struct i2c_adapter *a, unsigned long timeout, int writi
 static int i2c_wait_ack(struct i2c_adapter *a, unsigned long timeout, int writing) {
     int error = 0;
     int Status;
+    int i=0;
 
     struct i2c_dev_data *new_data = i2c_get_adapdata(a);
     void __iomem *pci_bar = fpga_dev.data_base_addr;
@@ -1294,16 +1296,17 @@ static int i2c_wait_ack(struct i2c_adapter *a, unsigned long timeout, int writin
     while (1) {
         Status = ioread8(pci_bar + REG_STAT);
         dev_dbg(&a->dev,"ST:%2.2X\n", Status);
+
+        if ( (Status & ( 1 << I2C_STAT_TIP ))  == 0 ) 
+        {
+            dev_dbg(&a->dev,"  IF:%2.2X\n", Status);
+            break;
+        }
+
         if (time_after(jiffies, timeout)) {
             info("Status %2.2X", Status);
             info("Error Timeout");
             error = -ETIMEDOUT;
-            break;
-        }
-
-        if ( (Status & ( 1 << I2C_STAT_TIP ))  == 0 )
-        {
-            dev_dbg(&a->dev,"  IF:%2.2X\n", Status);
             break;
         }
 
@@ -1315,6 +1318,7 @@ static int i2c_wait_ack(struct i2c_adapter *a, unsigned long timeout, int writin
 
     if (error < 0) {
         info("Status %2.2X", Status);
+
         return error;
     }
 
@@ -1329,12 +1333,14 @@ static int i2c_wait_ack(struct i2c_adapter *a, unsigned long timeout, int writin
         info( "SL No ACK");
         if (writing) {
             info("Error No ACK");
+            nack_retry = 1;
             return -EIO;
         }
     } else {
         info( "SL ACK");
     }
-    return 0;
+
+    return error;
 }
 
 /* SMBUS Xfer for opencore I2C with polling */
@@ -1659,6 +1665,7 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
                 }else{
                     dev_dbg(&adapter->dev,"Failed to deselect ch %d of 0x%x, CODE %d\n", prev_ch, prev_switch, error);
                 }
+
             }
             if(retry == 0)
                 goto release_unlock;
@@ -1671,6 +1678,7 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
                 }else{
                     dev_dbg(&adapter->dev,"Failed to deselect ch %d of 0x%x, CODE %d\n", prev_ch, prev_switch, error);
                 }
+
             }
             if(retry == 0)
                 goto release_unlock;
@@ -1689,6 +1697,7 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
                     }else{
                     dev_dbg(&adapter->dev,"Failed to deselect ch %d of 0x%x, CODE %d\n", prev_ch, prev_switch, error);
                 }
+
             }
             if(retry == 0)
                 goto release_unlock;
@@ -1699,7 +1708,16 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
     }
 
     // Do SMBus communication
+    nack_retry = 0;
     error = smbus_access(adapter, addr, flags, rw, cmd, size, data);
+    retry = 6;
+    while((nack_retry==1)&&(retry--))
+    {
+        nack_retry = 0;
+        printk("nack retry retry = %d\n",retry);
+        error = smbus_access(adapter, addr, flags, rw, cmd, size, data);
+    }
+
     if(error < 0){
         dev_dbg( &adapter->dev,"smbus_xfer failed (%d) @ 0x%2.2X|f 0x%4.4X|(%d)%-5s| (%d)%-10s|CMD %2.2X "
            , error, addr, flags, rw, rw == 1 ? "READ " : "WRITE"
