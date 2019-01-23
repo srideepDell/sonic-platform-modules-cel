@@ -1196,58 +1196,6 @@ static int i2c_xcvr_access(u8 register_address, unsigned int portid, u8 *data, c
     return 0;
 }
 
-static int wait_RXACK(struct i2c_adapter *a, unsigned long timeout)
-{
-    int error = 0;
-    int Status;
-
-    struct i2c_dev_data *new_data = i2c_get_adapdata(a);
-    void __iomem *pci_bar = fpga_dev.data_base_addr;
-
-    unsigned int REG_FREQ_L;
-    unsigned int REG_FREQ_H;
-    unsigned int REG_CMD;
-    unsigned int REG_CTRL;
-    unsigned int REG_STAT;
-    unsigned int REG_DATA;
-
-    unsigned int master_bus = new_data->pca9548.master_bus;
-
-    if (master_bus < I2C_MASTER_CH_1 || master_bus > I2C_MASTER_CH_TOTAL) {
-        error = -ENXIO;
-        return error;
-    }
-
-    REG_FREQ_L = I2C_MASTER_FREQ_L  + (master_bus - 1) * 0x20;
-    REG_FREQ_H = I2C_MASTER_FREQ_H  + (master_bus - 1) * 0x20;
-    REG_CTRL   = I2C_MASTER_CTRL    + (master_bus - 1) * 0x20;
-    REG_CMD    = I2C_MASTER_CMD     + (master_bus - 1) * 0x20;
-    REG_STAT   = I2C_MASTER_STATUS  + (master_bus - 1) * 0x20;
-    REG_DATA   = I2C_MASTER_DATA    + (master_bus - 1) * 0x20;
-
-    check(pci_bar + REG_STAT);
-    check(pci_bar + REG_CTRL);
-
-    timeout = jiffies + msecs_to_jiffies(timeout);
-    while (1) {
-        udelay(50);
-        Status = ioread8(pci_bar + REG_STAT);
-        if (jiffies > timeout) {
-            info("Status %2.2X", Status);
-            info("Error Timeout");
-            error = -ETIMEDOUT;
-            dev_dbg(&a->dev,"TO:%2.2X\n", Status);
-            break;
-        }
-
-        if ( Status & ( 1 << I2C_STAT_RxACK ) ) {
-            dev_dbg(&a->dev,"NACK:%2.2X\n", Status);
-            break;
-        }
-    }
-}
-
-
 static int i2c_wait_stop(struct i2c_adapter *a, unsigned long timeout, int writing) {
     int error = 0;
     int Status;
@@ -2189,7 +2137,7 @@ static int fpga_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     /* bar0: data mmio region */
     fpga_dev.data_mmio_start = pci_resource_start(pdev, FPGA_PCI_BAR_NUM);
     fpga_dev.data_mmio_len = pci_resource_len(pdev, FPGA_PCI_BAR_NUM);
-    fpga_dev.data_base_addr = pci_iomap(pdev, FPGA_PCI_BAR_NUM, 0);
+    fpga_dev.data_base_addr = ioremap_nocache(fpga_dev.data_mmio_start, fpga_dev.data_mmio_len);
     if (!fpga_dev.data_base_addr) {
         dev_err(dev, "cannot iomap region of size %lu\n",
                 (unsigned long)fpga_dev.data_mmio_len);
