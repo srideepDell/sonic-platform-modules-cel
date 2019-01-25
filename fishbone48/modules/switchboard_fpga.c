@@ -25,7 +25,7 @@
  */
 
 #ifndef TEST_MODE
-#define MOD_VERSION "0.3.7"
+#define MOD_VERSION "0.3.8"
 #else
 #define MOD_VERSION "TEST"
 #endif
@@ -62,7 +62,6 @@ static int  majorNumber;
 #define DEVICE_NAME "fwupgrade"
 
 static bool allow_unsafe_i2c_access;
-static int nack_retry = 0;
 
 static int smbus_access(struct i2c_adapter *adapter, u16 addr,
                         unsigned short flags, char rw, u8 cmd,
@@ -366,6 +365,8 @@ static struct device* fpgafwdev = NULL;    // < The device-driver device struct 
 static struct mutex fpga_i2c_master_locks[I2C_MASTER_CH_TOTAL];
 /* Store lasted switch address and channel */
 static uint16_t fpga_i2c_lasted_access_port[I2C_MASTER_CH_TOTAL];
+static int nack_retry[I2C_MASTER_CH_TOTAL];
+static int need_retry[I2C_MASTER_CH_TOTAL];
 
 enum PORT_TYPE {
     NONE,
@@ -1325,6 +1326,7 @@ static int i2c_wait_ack(struct i2c_adapter *a, unsigned long timeout, int writin
     // Arbitration lost
     if (Status & (1 << I2C_STAT_AL)) {
         info("Error arbitration lost");
+        nack_retry[master_bus - 1] = 1;
         return -EAGAIN;
     }
 
@@ -1333,7 +1335,7 @@ static int i2c_wait_ack(struct i2c_adapter *a, unsigned long timeout, int writin
         info( "SL No ACK");
         if (writing) {
             info("Error No ACK");
-            nack_retry = 1;
+            nack_retry[master_bus - 1] = 1;
             return -EIO;
         }
     } else {
@@ -1586,6 +1588,10 @@ static int smbus_access(struct i2c_adapter *adapter, u16 addr,
             
             // Wait {A}
             error = i2c_wait_ack(adapter, 30, 0);
+            if(nack_retry[master_bus - 1] == 1)
+            {
+                need_retry[master_bus - 1] = 1;
+            }
             if (error < 0) {
                 dev_dbg(&adapter->dev,"Receive DATA Error: %d\n", error);
                 goto Done;
@@ -1608,7 +1614,7 @@ Done:
     info( "MS STOP");
     // SET STOP
     iowrite8( 1 << I2C_CMD_STO, pci_bar + REG_CMD);
-    // Polling for the STO to finish.
+    // Wait for the STO to finish.
     udelay(50);
     check(pci_bar + REG_CTRL);
     check(pci_bar + REG_STAT);
@@ -1676,7 +1682,7 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
                 if(error >= 0){
                     break;
                 }else{
-                    dev_dbg(&adapter->dev,"Failed to deselect ch %d of 0x%x, CODE %d\n", prev_ch, prev_switch, error);
+                    dev_dbg(&adapter->dev,"Failed to select ch %d of 0x%x, CODE %d\n", prev_ch, prev_switch, error);
                 }
 
             }
@@ -1695,7 +1701,7 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
                     if(error >= 0){
                         break;
                     }else{
-                    dev_dbg(&adapter->dev,"Failed to deselect ch %d of 0x%x, CODE %d\n", prev_ch, prev_switch, error);
+                    dev_dbg(&adapter->dev,"Failed to select ch %d of 0x%x, CODE %d\n", prev_ch, prev_switch, error);
                 }
 
             }
@@ -1708,15 +1714,21 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
     }
 
     // Do SMBus communication
-    nack_retry = 0;
+    nack_retry[master_bus - 1] = 0;
+    need_retry[master_bus - 1] = 0;
     error = smbus_access(adapter, addr, flags, rw, cmd, size, data);
-    retry = 6;
-    while((nack_retry==1)&&(retry--))
+    if((nack_retry[master_bus - 1]==1)&&(need_retry[master_bus - 1]==1))
+        retry = 100;
+    else
+        retry = 5;
+    while((nack_retry[master_bus - 1]==1)&&(retry--))
     {
-        nack_retry = 0;
-        printk("nack retry retry = %d\n",retry);
+        nack_retry[master_bus - 1] = 0;
+        dev_dbg(&adapter->dev,"nack retry = %d\n",retry);
         error = smbus_access(adapter, addr, flags, rw, cmd, size, data);
     }
+    nack_retry[master_bus - 1] = 0;
+    need_retry[master_bus - 1] = 0;
 
     if(error < 0){
         dev_dbg( &adapter->dev,"smbus_xfer failed (%d) @ 0x%2.2X|f 0x%4.4X|(%d)%-5s| (%d)%-10s|CMD %2.2X "
