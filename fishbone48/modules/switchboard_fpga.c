@@ -1661,6 +1661,7 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
     if (switch_addr != 0xFF) {
 
         // Check lasted access switch address on a master
+        // Only select new channel of a switch if they are difference from last channel of a switch
         if ( prev_switch != switch_addr && prev_switch != 0 ) {
             // reset prev_port PCA9548 chip
             retry = 3;
@@ -1673,8 +1674,9 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
                 }
 
             }
-            if(retry == 0)
+            if(retry == 0){
                 goto release_unlock;
+            }
             // set PCA9548 to current channel
             retry = 3;
             while(retry--){
@@ -1682,12 +1684,13 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
                 if(error >= 0){
                     break;
                 }else{
-                    dev_dbg(&adapter->dev,"Failed to select ch %d of 0x%x, CODE %d\n", prev_ch, prev_switch, error);
+                    dev_dbg(&adapter->dev,"Failed to select ch %d of 0x%x, CODE %d\n", channel, switch_addr, error);
                 }
 
             }
-            if(retry == 0)
+            if(retry == 0){
                 goto release_unlock;
+            }
             // update lasted port
             fpga_i2c_lasted_access_port[master_bus - 1] = switch_addr << 8 | channel;
 
@@ -1701,12 +1704,12 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
                     if(error >= 0){
                         break;
                     }else{
-                    dev_dbg(&adapter->dev,"Failed to select ch %d of 0x%x, CODE %d\n", prev_ch, prev_switch, error);
+                        dev_dbg(&adapter->dev,"Failed to select ch %d of 0x%x, CODE %d\n", channel, switch_addr, error);
+                    }
                 }
-
-            }
-            if(retry == 0)
-                goto release_unlock;
+                if(retry == 0){
+                    goto release_unlock;
+                }
                 // update lasted port
                 fpga_i2c_lasted_access_port[master_bus - 1] = switch_addr << 8 | channel;
             }
@@ -1888,6 +1891,7 @@ static int fishbone48_drv_probe(struct platform_device *pdev)
     mutex_init(&fpga_data->fpga_lock);
     for (ret = I2C_MASTER_CH_1 ; ret <= I2C_MASTER_CH_TOTAL; ret++) {
         mutex_init(&fpga_i2c_master_locks[ret - 1]);
+        fpga_i2c_lasted_access_port[ret - 1] = 0;
     }
 
     res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
