@@ -1721,7 +1721,7 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
     need_retry[master_bus - 1] = 0;
     error = smbus_access(adapter, addr, flags, rw, cmd, size, data);
     if((nack_retry[master_bus - 1]==1)&&(need_retry[master_bus - 1]==1))
-        retry = 100;
+        retry = 2000;
     else
         retry = 5;
     while((nack_retry[master_bus - 1]==1)&&(retry--))
