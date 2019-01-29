@@ -1263,7 +1263,6 @@ static int i2c_wait_stop(struct i2c_adapter *a, unsigned long timeout, int writi
 static int i2c_wait_ack(struct i2c_adapter *a, unsigned long timeout, int writing) {
     int error = 0;
     int Status;
-    int i=0;
 
     struct i2c_dev_data *new_data = i2c_get_adapdata(a);
     void __iomem *pci_bar = fpga_dev.data_base_addr;
@@ -1674,7 +1673,7 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
                 }
 
             }
-            if(retry == 0){
+            if(retry < 0){
                 goto release_unlock;
             }
             // set PCA9548 to current channel
@@ -1688,7 +1687,7 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
                 }
 
             }
-            if(retry == 0){
+            if(retry < 0){
                 goto release_unlock;
             }
             // update lasted port
@@ -1707,7 +1706,7 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
                         dev_dbg(&adapter->dev,"Failed to select ch %d of 0x%x, CODE %d\n", channel, switch_addr, error);
                     }
                 }
-                if(retry == 0){
+                if(retry < 0){
                     goto release_unlock;
                 }
                 // update lasted port
@@ -1724,12 +1723,13 @@ static int fpga_i2c_access(struct i2c_adapter *adapter, u16 addr,
         retry = 2000;
     else
         retry = 5;
-    while((nack_retry[master_bus - 1]==1)&&(retry--))
+    while((nack_retry[master_bus - 1]==1)&&retry)
     {
+        retry--;
         nack_retry[master_bus - 1] = 0;
-        dev_dbg(&adapter->dev,"nack retry = %d\n",retry);
         error = smbus_access(adapter, addr, flags, rw, cmd, size, data);
     }
+    dev_dbg(&adapter->dev,"nack retry = %d\n",retry);
     nack_retry[master_bus - 1] = 0;
     need_retry[master_bus - 1] = 0;
 
