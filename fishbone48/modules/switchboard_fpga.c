@@ -25,7 +25,7 @@
  */
 
 #ifndef TEST_MODE
-#define MOD_VERSION "0.3.8"
+#define MOD_VERSION "0.3.9"
 #else
 #define MOD_VERSION "TEST"
 #endif
@@ -1614,7 +1614,7 @@ Done:
     // SET STOP
     iowrite8( 1 << I2C_CMD_STO, pci_bar + REG_CMD);
     // Wait for the STO to finish.
-    udelay(50);
+    i2c_wait_stop(adapter, 30, 0);
     check(pci_bar + REG_CTRL);
     check(pci_bar + REG_STAT);
 #ifdef DEBUG_KERN
